@@ -15,15 +15,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - CORS設定でCopilot Studioからのアクセスを許可
    - 環境変数でPLC接続設定を管理
 
-2. **plc_filecontrol.py** - PLCファイル制御専用ユーティリティ
-   - MCプロトコル 1827/1828/182A を使用
-   - ファイルのロック、読み取り、クローズ機能
-
-3. **batch_device_reader.py** - 複数デバイス一括読み取りの管理
+2. **batch_device_reader.py** - 複数デバイス一括読み取りの管理
    - Strategy Patternを使用してデバイス種別ごとの処理を委譲
    - 効率的なMCプロトコルrandomread機能を活用
 
-4. **device_readers/** - デバイス読み取り戦略の実装
+3. **device_readers/** - デバイス読み取り戦略の実装
    - `base_device_reader.py`: 抽象基底クラスとレジストリ
    - `word_device_reader.py`: ワードデバイス（D, W, R, ZR）対応
    - `bit_device_reader.py`: ビットデバイス（X, Y, M）対応
@@ -98,3 +94,20 @@ pip install -r requirements.txt
 - バッチ読み取りでMCプロトコルの効率性を活用
 - 同種デバイスのグルーピング
 - 失敗時の個別読み取りフォールバック機能
+
+## 重要な注意事項
+
+### テスト実行
+このプロジェクトには現在テストフレームワークが設定されていません。コードを変更する際は、手動でのテストが必要です。
+
+### デバッグとログ
+- デバイス読み取り処理にはPythonの`logging`モジュールを使用
+- デバッグレベルのログでデバイス解析結果を確認可能
+- PLC接続エラーは適切にキャッチされ、HTTPエラーレスポンスとして返される
+
+### ファイル構造の変更
+このプロジェクトでは以下のファイルが削除されています：
+- `plc_filecontrol.py`: MCプロトコル1827/1828/182Aを使用したファイル制御機能は現在未実装
+
+### モジュール再読み込み
+`gateway.py`では開発時のモジュールキャッシュ問題に対応するため、バッチ読み取り時に関連モジュールの強制再読み込みを実行しています。
