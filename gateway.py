@@ -51,7 +51,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─────────────────── Device Read (既存) ───────────────────
 class ReadRequest(BaseModel):
     device: str = "D"
     addr:   int
@@ -60,14 +59,10 @@ class ReadRequest(BaseModel):
     port:   Optional[int] = None
 
 
-# ─────────────────── Batch Device Read (新規) ───────────────────
 class BatchReadRequest(BaseModel):
     devices: List[str]  # 例: ["D100", "D200:5", "M10", "X30", "Y1A"]
     ip:      Optional[str] = None
     port:    Optional[int] = None
-
-
-# DeviceReadResultは device_readers.base_device_reader からインポート
 
 
 class BatchReadResponse(BaseModel):
@@ -232,7 +227,6 @@ def api_read_get_compat(device: str, addr: int, length: int,
                                 ip=ip, port=port))
 
 
-# ──────────────── Batch Read API (新規) ────────────────
 @app.post("/api/batch_read", response_model=BatchReadResponse,
           tags=["Batch Operations"],
           summary="複数デバイス一括読み取り",
