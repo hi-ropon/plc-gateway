@@ -1,0 +1,9 @@
+# FastAPI Framework
+fastapi
+uvicorn[standard]
+
+# Data Validation
+pydantic
+
+# PLC Communication
+pymcprotocol
