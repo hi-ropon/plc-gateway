@@ -4,27 +4,74 @@
 # ------------------------------------------------------------
 import os
 import json
+import yaml
 import base64
 import re
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 from pymcprotocol import Type3E
 from pymcprotocol.mcprotocolerror import MCProtocolError
 from device_readers.base_device_reader import DeviceReadResult
+from version import __version__, format_version_string
+from network_utils import get_local_ip, get_hostname, get_openapi_servers, print_access_info
 
 # ──────────────────── 環境変数 ────────────────────
 PLC_IP      = os.getenv("PLC_IP",         "127.0.0.1")
 PLC_PORT    = int(os.getenv("PLC_PORT",   "5511"))
 TIMEOUT_SEC = float(os.getenv("PLC_TIMEOUT_SEC", "3.0"))
 
+# 起動時にバージョン情報を表示
+def startup_message():
+    """起動時のメッセージを表示"""
+    print("\n" + "="*60)
+    print(f"  PLC Gateway REST API v{__version__}")
+    print("="*60)
+    print(format_version_string())
+    print("="*60)
+    print(f"\nFastAPI REST API 起動")
+    print(f"  PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s)")
+
+    # アクセス情報を表示
+    print_access_info(port=8000)
+
+    # API仕様ファイル
+    local_ip = get_local_ip()
+    hostname = get_hostname()
+
+    print("APIドキュメント:")
+    print(f"  - http://localhost:8000/docs")
+    if local_ip != "127.0.0.1":
+        print(f"  - http://{local_ip}:8000/docs")
+    if hostname != "localhost":
+        print(f"  - http://{hostname}:8000/docs")
+
+    print("\nOpenAPI仕様:")
+    print(f"  - http://localhost:8000/api/openapi/json")
+    print(f"  - http://localhost:8000/api/openapi/yaml\n")
+
+# FastAPIアプリケーション起動時に実行
+if __name__ != "__main__":
+    startup_message()
+
 # ──────────────────── FastAPI ────────────────────
 app = FastAPI(
     title="PLC Gateway API",
-    description="三菱PLCとMCプロトコルで通信するためのGateway API。Copilot Studioなどの外部ツールから利用可能です。",
-    version="1.0.0",
+    description="三菱PLCとMCプロトコルで通信するためのGateway API。Copilot Studioなどの外部ツールやMCPクライアントから利用可能です。",
+    version=__version__,
+    contact={
+        "name": "PLC Gateway API開発チーム",
+        "url": "https://github.com/your-org/plc-gateway",
+        "email": "support@your-org.com"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    },
+    servers=get_openapi_servers(port=8000),
     openapi_tags=[
         {
             "name": "Device Read",
@@ -37,6 +84,10 @@ app = FastAPI(
         {
             "name": "System Status",
             "description": "システム状態確認"
+        },
+        {
+            "name": "OpenAPI Schema",
+            "description": "OpenAPI仕様ファイルの取得"
         }
     ]
 )
@@ -286,3 +337,120 @@ def api_batch_read_status():
         "randomread_fallback": True,
         "version": "1.0"
     }
+
+
+# ──────────────────── OpenAPI仕様ファイル出力 ────────────────────
+def _generate_openapi_files():
+    """
+    起動時にOpenAPI仕様ファイル（JSON/YAML）を生成
+    """
+    try:
+        # OpenAPI仕様を取得
+        openapi_schema = app.openapi()
+
+        # JSON形式で保存
+        with open("openapi.json", "w", encoding="utf-8") as f:
+            json.dump(openapi_schema, f, indent=2, ensure_ascii=False)
+
+        # YAML形式で保存
+        with open("openapi.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(openapi_schema, f, default_flow_style=False,
+                     allow_unicode=True, sort_keys=False)
+
+        print("OpenAPI仕様ファイルを生成しました: openapi.json, openapi.yaml")
+
+    except Exception as e:
+        print(f"OpenAPI仕様ファイル生成エラー: {e}")
+
+
+@app.get("/api/openapi/json", tags=["OpenAPI Schema"],
+         summary="OpenAPI仕様ファイル（JSON）のダウンロード",
+         description="OpenAPI仕様をJSON形式でダウンロードします")
+def download_openapi_json():
+    """OpenAPI仕様ファイル（JSON）をダウンロード"""
+    try:
+        openapi_schema = app.openapi()
+        return JSONResponse(
+            content=openapi_schema,
+            headers={
+                "Content-Disposition": "attachment; filename=openapi.json",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAPI JSON生成エラー: {str(e)}")
+
+
+@app.get("/api/openapi/yaml", tags=["OpenAPI Schema"],
+         summary="OpenAPI仕様ファイル（YAML）のダウンロード",
+         description="OpenAPI仕様をYAML形式でダウンロードします")
+def download_openapi_yaml():
+    """OpenAPI仕様ファイル（YAML）をダウンロード"""
+    try:
+        openapi_schema = app.openapi()
+        yaml_content = yaml.dump(openapi_schema, default_flow_style=False,
+                                allow_unicode=True, sort_keys=False)
+
+        return PlainTextResponse(
+            content=yaml_content,
+            headers={
+                "Content-Disposition": "attachment; filename=openapi.yaml",
+                "Content-Type": "application/x-yaml"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAPI YAML生成エラー: {str(e)}")
+
+
+@app.get("/api/openapi/status", tags=["OpenAPI Schema"],
+         summary="OpenAPI仕様生成機能の状態確認",
+         description="OpenAPI仕様ファイル生成機能の状態とサポート情報を取得します")
+def api_openapi_status():
+    """
+    OpenAPI仕様生成機能の状態確認
+    """
+    import os
+
+    json_exists = os.path.exists("openapi.json")
+    yaml_exists = os.path.exists("openapi.yaml")
+
+    return {
+        "openapi_generation_available": True,
+        "file_generation_status": {
+            "json_file_exists": json_exists,
+            "yaml_file_exists": yaml_exists,
+            "auto_generation_on_startup": True
+        },
+        "supported_formats": ["JSON", "YAML"],
+        "download_endpoints": {
+            "json": "/api/openapi/json",
+            "yaml": "/api/openapi/yaml"
+        },
+        "version": "1.1.0"
+    }
+
+
+# ──────────────────── 起動時処理 ────────────────────
+@app.on_event("startup")
+async def startup_event():
+    """
+    アプリケーション起動時の処理
+    """
+    print("PLC Gateway API を起動中...")
+    print(f"PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s)")
+
+    # OpenAPI仕様ファイルを生成
+    _generate_openapi_files()
+
+    print("PLC Gateway API が正常に起動しました")
+
+    # アクセス可能なURLを表示
+    local_ip = get_local_ip()
+    hostname = get_hostname()
+
+    print("\nアクセス可能なURL:")
+    print(f"  - http://localhost:8000/docs (ローカル)")
+    if local_ip != "127.0.0.1":
+        print(f"  - http://{local_ip}:8000/docs (IPアドレス)")
+    if hostname != "localhost":
+        print(f"  - http://{hostname}:8000/docs (ホスト名)")
