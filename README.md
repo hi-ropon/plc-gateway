@@ -8,7 +8,7 @@
 - **OpenAPI仕様出力**: 標準的なAPI仕様ファイル（JSON/YAML）の生成・ダウンロード
 - **MCPサーバー**: AI統合用Model Context Protocol対応
 - **バッチ読み取り**: 複数デバイスの効率的な一括読み取り
-- **3つの起動方式**: 個別起動または統合起動
+- **統合起動システム**: 個別起動または統合起動
 - **多様なデバイス対応**: ワードデバイス（D, W, R, ZR）とビットデバイス（X, Y, M）をサポート
 - **柔軟なアドレス指定**: 10進数・16進数・H記法に対応
 - **CORS対応**: 外部ツールからのアクセスを許可
@@ -149,24 +149,6 @@ MCPクライアント（Claude Codeなど）から以下のツールを利用可
 }
 ```
 
-### 4. MCP Gateway Bridge（Copilot Studio統合）
-
-別ポート（8001）で起動し、HTTPリクエストをMCPサーバーに橋渡し：
-
-#### エンドポイント
-- `POST /mcp/read`: 単一デバイス読み取り
-- `POST /mcp/batch_read`: バッチ読み取り
-- `POST /mcp/execute`: 汎用MCPツール実行
-- `GET /mcp/tools`: 利用可能ツール一覧
-- `POST /mcp/test_connection`: PLC接続テスト
-
-#### 使用例
-```bash
-# PLCデバイス読み取り
-curl -X POST "http://localhost:8001/mcp/read" \
-  -H "Content-Type: application/json" \
-  -d '{"device": "D", "addr": 100, "length": 1}'
-```
 
 ## 🎯 使用例
 
@@ -260,6 +242,8 @@ gateway/
 ├── plc_operations.py      # 共通PLC操作ロジック
 ├── main.py               # 統合起動スクリプト
 ├── batch_device_reader.py # バッチ読み取り管理
+├── network_utils.py       # ネットワークユーティリティ
+├── version.py            # バージョン管理
 ├── device_readers/       # デバイス読み取り戦略
 │   ├── base_device_reader.py
 │   ├── word_device_reader.py

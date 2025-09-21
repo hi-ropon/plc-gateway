@@ -8,12 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 概要
 
-このプロジェクトは三菱PLCとMCプロトコルで通信するための統合Gateway APIです。以下の4つの方法でPLCデバイスにアクセス可能：
+このプロジェクトは三菱PLCとMCプロトコルで通信するための統合Gateway APIです。以下の3つの方法でPLCデバイスにアクセス可能：
 
 1. **FastAPI REST API** - HTTP経由でのPLCデバイス読み取り
 2. **OpenAPI仕様出力** - 標準的なAPI仕様ファイル（JSON/YAML）の生成・ダウンロード
 3. **MCPサーバー** - AI統合用Model Context Protocol対応
-4. **MCP Gateway Bridge** - Copilot Studio統合用HTTPブリッジ
 
 ## アーキテクチャ
 
@@ -94,10 +93,6 @@ uvicorn gateway:app --reload --host 0.0.0.0 --port 8000
 # MCPサーバー起動
 python mcp_server.py
 
-# MCP Gateway Bridge起動（Copilot Studio連携）
-python mcp_gateway_bridge.py
-# または
-uvicorn mcp_gateway_bridge:app --host 0.0.0.0 --port 8001
 ```
 
 ### 依存関係インストール
@@ -151,15 +146,6 @@ export MCP_LOG_LEVEL=INFO        # MCPログレベル（デフォルト: INFO）
 
 #### バージョン情報
 - `GET /api/version` - システムバージョン情報の取得
-
-### MCP Gateway Bridge エンドポイント（Copilot Studio用）
-
-#### HTTPブリッジエンドポイント（ポート8001）
-- `POST /mcp/read` - 単一デバイス読み取り
-- `POST /mcp/batch_read` - 複数デバイス一括読み取り
-- `POST /mcp/execute` - 汎用MCPツール実行
-- `GET /mcp/tools` - 利用可能ツール一覧取得
-- `POST /mcp/test_connection` - PLC接続テスト
 
 ### MCPツール（AI統合用）
 
@@ -220,8 +206,8 @@ export MCP_LOG_LEVEL=INFO        # MCPログレベル（デフォルト: INFO）
 - **最新機能**:
   - バージョン表示機能追加
   - 統合起動システム改善
-  - MCP Gateway Bridge実装
   - 開発/本番モード分離機能
+  - ネットワーク診断機能追加
 
 ## 今後の開発予定
 
