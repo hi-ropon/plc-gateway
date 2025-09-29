@@ -13,4 +13,4 @@ mcp
 asyncio-mqtt
 
 # PLC Communication
-pymcprotocol
+# pymcprotocol - removed, using mcprotocol instead

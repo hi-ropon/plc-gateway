@@ -12,8 +12,8 @@ import sys
 import importlib
 from typing import List, Dict, Any, Tuple, Optional
 
-from pymcprotocol import Type3E
-from pymcprotocol.mcprotocolerror import MCProtocolError
+from mcprotocol import Type3E
+from mcprotocol.errors import MCProtocolError
 from device_readers.base_device_reader import DeviceReadResult
 
 

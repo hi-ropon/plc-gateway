@@ -160,7 +160,7 @@ export MCP_LOG_LEVEL=INFO        # MCPログレベル（デフォルト: INFO）
 ## 技術仕様
 
 ### MCプロトコル通信
-- pymcprotocolライブラリを使用
+- 独自実装のmcprotocolライブラリを使用
 - iQ-R PLCに最適化
 - binaryモードで通信
 - randomread機能でバッチ読み取りを最適化
