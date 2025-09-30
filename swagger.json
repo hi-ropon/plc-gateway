@@ -105,10 +105,17 @@
             "format": "int32"
           },
           {
+            "name": "plc_host",
+            "in": "query",
+            "required": false,
+            "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）",
+            "type": "string"
+          },
+          {
             "name": "ip",
             "in": "query",
             "required": false,
-            "description": "PLCのIPアドレス（省略時は環境変数使用）",
+            "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）",
             "type": "string"
           },
           {
@@ -169,10 +176,17 @@
             "format": "int32"
           },
           {
+            "name": "plc_host",
+            "in": "query",
+            "required": false,
+            "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）",
+            "type": "string"
+          },
+          {
             "name": "ip",
             "in": "query",
             "required": false,
-            "description": "PLCのIPアドレス（省略時は環境変数使用）",
+            "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）",
             "type": "string"
           },
           {
@@ -350,6 +364,17 @@
           "type": "array",
           "title": "Devices"
         },
+        "plc_host": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Plc Host"
+        },
         "ip": {
           "anyOf": [
             {
@@ -468,6 +493,17 @@
         "length": {
           "type": "integer",
           "title": "Length"
+        },
+        "plc_host": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Plc Host"
         },
         "ip": {
           "anyOf": [

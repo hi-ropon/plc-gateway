@@ -9,6 +9,7 @@ REST APIとMCPサーバーで共有される処理
 import os
 import re
 import sys
+import socket
 import importlib
 from typing import List, Dict, Any, Tuple, Optional
 
@@ -17,15 +18,63 @@ from mcprotocol.errors import MCProtocolError
 from device_readers.base_device_reader import DeviceReadResult
 
 
+def resolve_hostname(host: str) -> str:
+    """
+    ホスト名をIPアドレスに解決
+
+    Args:
+        host: ホスト名またはIPアドレス
+
+    Returns:
+        str: 解決されたIPアドレス
+
+    Raises:
+        socket.gaierror: ホスト名解決失敗
+    """
+    try:
+        # 既にIPアドレスの場合はそのまま返す
+        socket.inet_aton(host)
+        return host
+    except socket.error:
+        # ホスト名として解決
+        try:
+            ip_address = socket.gethostbyname(host)
+            return ip_address
+        except socket.gaierror as e:
+            raise ValueError(f"ホスト名 '{host}' を解決できません: {e}")
+
+
 class PLCConnectionConfig:
     """PLC接続設定クラス"""
 
-    def __init__(self, ip: str = None, port: int = None, timeout_sec: float = None):
-        self.ip = ip or os.getenv("PLC_IP", "127.0.0.1")
+    def __init__(self, plc_host: str = None, ip: str = None, port: int = None, timeout_sec: float = None):
+        """
+        PLC接続設定の初期化
+
+        Args:
+            plc_host: コンピューター名またはIPアドレス（優先）
+            ip: IPアドレス（後方互換性のため）
+            port: ポート番号
+            timeout_sec: タイムアウト秒数
+        """
+        # ホスト名の優先順位: plc_host > ip > 環境変数
+        host = plc_host or ip or os.getenv("PLC_IP", "127.0.0.1")
+
+        # ホスト名をIPアドレスに解決
+        try:
+            self.ip = resolve_hostname(host)
+            self.original_host = host  # 元のホスト名を保持
+        except ValueError as e:
+            # 解決失敗時はそのまま使用（エラーは接続時に発生）
+            self.ip = host
+            self.original_host = host
+
         self.port = port or int(os.getenv("PLC_PORT", "5511"))
         self.timeout_sec = timeout_sec or float(os.getenv("PLC_TIMEOUT_SEC", "3.0"))
 
     def __str__(self):
+        if self.original_host != self.ip:
+            return f"PLC({self.original_host}→{self.ip}:{self.port}, timeout={self.timeout_sec}s)"
         return f"PLC({self.ip}:{self.port}, timeout={self.timeout_sec}s)"
 
 

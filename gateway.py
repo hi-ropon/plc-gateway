@@ -106,14 +106,16 @@ class ReadRequest(BaseModel):
     device: str = "D"
     addr:   int
     length: int
-    ip:     Optional[str] = None
-    port:   Optional[int] = None
+    plc_host: Optional[str] = None  # コンピューター名またはIPアドレス
+    ip:       Optional[str] = None  # 後方互換性のため残す
+    port:     Optional[int] = None
 
 
 class BatchReadRequest(BaseModel):
     devices: List[str]  # 例: ["D100", "D200:5", "M10", "X30", "Y1A"]
-    ip:      Optional[str] = None
-    port:    Optional[int] = None
+    plc_host: Optional[str] = None  # コンピューター名またはIPアドレス
+    ip:       Optional[str] = None  # 後方互換性のため残す
+    port:     Optional[int] = None
 
 
 class BatchReadResponse(BaseModel):
@@ -259,8 +261,10 @@ def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[Devi
           description="指定したPLCデバイスから値を読み取ります")
 def api_read(req: ReadRequest):
     try:
+        # plc_hostまたはipを使用（plc_hostが優先）
+        host = req.plc_host or req.ip or PLC_IP
         vals = _read_plc(req.device, req.addr, req.length,
-                         ip=req.ip or PLC_IP,
+                         ip=host,
                          port=req.port or PLC_PORT)
         return {"values": vals}
     except Exception as ex:
@@ -276,11 +280,12 @@ def api_read_get(
     device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
     addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
-    ip: Optional[str] = Query(None, description="PLCのIPアドレス（省略時は環境変数使用）"),
+    plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
+    ip: Optional[str] = Query(None, description="PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"),
     port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
 ):
     return api_read(ReadRequest(device=device, addr=addr, length=length,
-                                ip=ip, port=port))
+                                plc_host=plc_host, ip=ip, port=port))
 
 
 # 後方互換性のため、/api/プレフィックスなしでもアクセス可能にする
@@ -291,12 +296,13 @@ def api_read_get_compat(
     device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
     addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
-    ip: Optional[str] = Query(None, description="PLCのIPアドレス（省略時は環境変数使用）"),
+    plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
+    ip: Optional[str] = Query(None, description="PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"),
     port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
 ):
     """後方互換性のため、/api/プレフィックスなしでもアクセス可能"""
     return api_read(ReadRequest(device=device, addr=addr, length=length,
-                                ip=ip, port=port))
+                                plc_host=plc_host, ip=ip, port=port))
 
 
 @app.post("/api/batch_read", response_model=BatchReadResponse,
@@ -318,10 +324,11 @@ def api_batch_read(req: BatchReadRequest):
                 successful_devices=0
             )
         
-        # バッチ読み取り実行
+        # バッチ読み取り実行（plc_hostまたはipを使用）
+        host = req.plc_host or req.ip or PLC_IP
         results = _batch_read_plc(
             req.devices,
-            ip=req.ip or PLC_IP,
+            ip=host,
             port=req.port or PLC_PORT
         )
         

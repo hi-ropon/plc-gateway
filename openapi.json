@@ -114,6 +114,24 @@
             "description": "読み取り長（ワード数またはビット数）"
           },
           {
+            "name": "plc_host",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）",
+              "title": "Plc Host"
+            },
+            "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"
+          },
+          {
             "name": "ip",
             "in": "query",
             "required": false,
@@ -126,10 +144,10 @@
                   "type": "null"
                 }
               ],
-              "description": "PLCのIPアドレス（省略時は環境変数使用）",
+              "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）",
               "title": "Ip"
             },
-            "description": "PLCのIPアドレス（省略時は環境変数使用）"
+            "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"
           },
           {
             "name": "port",
@@ -214,6 +232,24 @@
             "description": "読み取り長（ワード数またはビット数）"
           },
           {
+            "name": "plc_host",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）",
+              "title": "Plc Host"
+            },
+            "description": "PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"
+          },
+          {
             "name": "ip",
             "in": "query",
             "required": false,
@@ -226,10 +262,10 @@
                   "type": "null"
                 }
               ],
-              "description": "PLCのIPアドレス（省略時は環境変数使用）",
+              "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）",
               "title": "Ip"
             },
-            "description": "PLCのIPアドレス（省略時は環境変数使用）"
+            "description": "PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"
           },
           {
             "name": "port",
@@ -448,6 +484,17 @@
             "type": "array",
             "title": "Devices"
           },
+          "plc_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plc Host"
+          },
           "ip": {
             "anyOf": [
               {
@@ -566,6 +613,17 @@
           "length": {
             "type": "integer",
             "title": "Length"
+          },
+          "plc_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plc Host"
           },
           "ip": {
             "anyOf": [
