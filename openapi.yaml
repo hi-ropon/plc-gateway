@@ -24,7 +24,7 @@ paths:
       - Device Read
       summary: 単一デバイス読み取り
       description: 指定したPLCデバイスから値を読み取ります
-      operationId: api_read_api_read_post
+      operationId: read_device
       requestBody:
         content:
           application/json:
@@ -36,7 +36,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ReadResponse'
         '422':
           description: Validation Error
           content:
@@ -49,26 +50,32 @@ paths:
       - Device Read
       summary: 単一デバイス読み取り (GET)
       description: URLパスパラメータを使用してPLCデバイスから値を読み取ります
-      operationId: api_read_get_api_read__device___addr___length__get
+      operationId: read_device_get
       parameters:
       - name: device
         in: path
         required: true
         schema:
           type: string
+          description: デバイス種別（D, W, R, ZR, X, Y, M）
           title: Device
+        description: デバイス種別（D, W, R, ZR, X, Y, M）
       - name: addr
         in: path
         required: true
         schema:
           type: integer
+          description: デバイスアドレス（10進数または16進数）
           title: Addr
+        description: デバイスアドレス（10進数または16進数）
       - name: length
         in: path
         required: true
         schema:
           type: integer
+          description: 読み取り長（ワード数またはビット数）
           title: Length
+        description: 読み取り長（ワード数またはビット数）
       - name: ip
         in: query
         required: false
@@ -76,7 +83,9 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
+          description: PLCのIPアドレス（省略時は環境変数使用）
           title: Ip
+        description: PLCのIPアドレス（省略時は環境変数使用）
       - name: port
         in: query
         required: false
@@ -84,13 +93,16 @@ paths:
           anyOf:
           - type: integer
           - type: 'null'
+          description: PLCのポート番号（省略時は環境変数使用）
           title: Port
+        description: PLCのポート番号（省略時は環境変数使用）
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ReadResponse'
         '422':
           description: Validation Error
           content:
@@ -101,26 +113,32 @@ paths:
     get:
       summary: Api Read Get Compat
       description: 後方互換性のため、/api/プレフィックスなしでもアクセス可能
-      operationId: api_read_get_compat__device___addr___length__get
+      operationId: read_device_compat
       parameters:
       - name: device
         in: path
         required: true
         schema:
           type: string
+          description: デバイス種別（D, W, R, ZR, X, Y, M）
           title: Device
+        description: デバイス種別（D, W, R, ZR, X, Y, M）
       - name: addr
         in: path
         required: true
         schema:
           type: integer
+          description: デバイスアドレス（10進数または16進数）
           title: Addr
+        description: デバイスアドレス（10進数または16進数）
       - name: length
         in: path
         required: true
         schema:
           type: integer
+          description: 読み取り長（ワード数またはビット数）
           title: Length
+        description: 読み取り長（ワード数またはビット数）
       - name: ip
         in: query
         required: false
@@ -128,7 +146,9 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
+          description: PLCのIPアドレス（省略時は環境変数使用）
           title: Ip
+        description: PLCのIPアドレス（省略時は環境変数使用）
       - name: port
         in: query
         required: false
@@ -136,13 +156,16 @@ paths:
           anyOf:
           - type: integer
           - type: 'null'
+          description: PLCのポート番号（省略時は環境変数使用）
           title: Port
+        description: PLCのポート番号（省略時は環境変数使用）
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ReadResponse'
         '422':
           description: Validation Error
           content:
@@ -155,7 +178,7 @@ paths:
       - Batch Operations
       summary: 複数デバイス一括読み取り
       description: 複数のPLCデバイスを一括で読み取ります。MCプロトコルのrandomread機能を活用した効率的な読み取りを行います。
-      operationId: api_batch_read_api_batch_read_post
+      operationId: batch_read_devices
       requestBody:
         content:
           application/json:
@@ -208,6 +231,32 @@ paths:
       summary: OpenAPI仕様ファイル（YAML）のダウンロード
       description: OpenAPI仕様をYAML形式でダウンロードします
       operationId: download_openapi_yaml_api_openapi_yaml_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/openapi/swagger:
+    get:
+      tags:
+      - OpenAPI Schema
+      summary: Swagger 2.0仕様ファイル（JSON）のダウンロード
+      description: Swagger 2.0仕様をJSON形式でダウンロードします（Copilot Studio用）
+      operationId: download_swagger_json_api_openapi_swagger_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/openapi/swagger/yaml:
+    get:
+      tags:
+      - OpenAPI Schema
+      summary: Swagger 2.0仕様ファイル（YAML）のダウンロード
+      description: Swagger 2.0仕様をYAML形式でダウンロードします（Copilot Studio用）
+      operationId: download_swagger_yaml_api_openapi_swagger_yaml_get
       responses:
         '200':
           description: Successful Response
@@ -329,6 +378,18 @@ components:
       - addr
       - length
       title: ReadRequest
+    ReadResponse:
+      properties:
+        values:
+          items:
+            type: integer
+          type: array
+          title: Values
+      type: object
+      required:
+      - values
+      title: ReadResponse
+      description: PLCデバイス読み取りレスポンス
     ValidationError:
       properties:
         loc:
