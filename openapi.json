@@ -20,8 +20,8 @@
       "description": "ローカル開発環境"
     },
     {
-      "url": "http://192.168.0.32:8000",
-      "description": "IPアドレスアクセス (192.168.0.32)"
+      "url": "http://192.168.0.5:8000",
+      "description": "IPアドレスアクセス (192.168.0.5)"
     },
     {
       "url": "http://MyComputer:8000",

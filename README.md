@@ -326,15 +326,6 @@ curl -X POST "http://localhost:8000/api/read" \
 
 MIT License
 
-## 🤝 貢献
-
-Issues やPull Requestsを歓迎します。
-
-## 📞 サポート
-
-- GitHub Issues: [プロジェクトURL]/issues
-- Email: support@your-org.com
-
 ---
 
 **注意**: 本番環境では適切なセキュリティ設定（CORS制限、認証等）を行ってください。
