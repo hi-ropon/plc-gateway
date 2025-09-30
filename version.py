@@ -57,10 +57,10 @@ def get_version_info() -> dict:
         lib_versions["fastapi"] = "未インストール"
 
     try:
-        import pymcprotocol
-        lib_versions["pymcprotocol"] = pymcprotocol.__version__
+        import mcprotocol
+        lib_versions["mcprotocol"] = mcprotocol.__version__
     except ImportError:
-        lib_versions["pymcprotocol"] = "未インストール"
+        lib_versions["mcprotocol"] = "未インストール"
 
     try:
         import mcp

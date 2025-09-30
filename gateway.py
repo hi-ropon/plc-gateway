@@ -9,12 +9,12 @@ import base64
 import re
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
-from pymcprotocol import Type3E
-from pymcprotocol.mcprotocolerror import MCProtocolError
+from mcprotocol import Type3E
+from mcprotocol.errors import MCProtocolError
 from device_readers.base_device_reader import DeviceReadResult
 from version import __version__, format_version_string
 from network_utils import get_local_ip, get_hostname, get_openapi_servers, print_access_info
@@ -120,6 +120,11 @@ class BatchReadResponse(BaseModel):
     results: List[DeviceReadResult]
     total_devices: int
     successful_devices: int
+
+
+class ReadResponse(BaseModel):
+    """PLCデバイス読み取りレスポンス"""
+    values: List[int]
 
 
 def _parse_device_spec(device_spec: str) -> tuple[str, int, int]:
@@ -248,6 +253,8 @@ def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[Devi
 
 
 @app.post("/api/read", tags=["Device Read"],
+          response_model=ReadResponse,
+          operation_id="read_device",
           summary="単一デバイス読み取り",
           description="指定したPLCデバイスから値を読み取ります")
 def api_read(req: ReadRequest):
@@ -261,18 +268,32 @@ def api_read(req: ReadRequest):
 
 
 @app.get("/api/read/{device}/{addr}/{length}", tags=["Device Read"],
+         response_model=ReadResponse,
+         operation_id="read_device_get",
          summary="単一デバイス読み取り (GET)",
          description="URLパスパラメータを使用してPLCデバイスから値を読み取ります")
-def api_read_get(device: str, addr: int, length: int,
-                 ip: Optional[str] = None, port: Optional[int] = None):
+def api_read_get(
+    device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
+    addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
+    length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
+    ip: Optional[str] = Query(None, description="PLCのIPアドレス（省略時は環境変数使用）"),
+    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
+):
     return api_read(ReadRequest(device=device, addr=addr, length=length,
                                 ip=ip, port=port))
 
 
 # 後方互換性のため、/api/プレフィックスなしでもアクセス可能にする
-@app.get("/{device}/{addr}/{length}")
-def api_read_get_compat(device: str, addr: int, length: int,
-                        ip: Optional[str] = None, port: Optional[int] = None):
+@app.get("/{device}/{addr}/{length}",
+         response_model=ReadResponse,
+         operation_id="read_device_compat")
+def api_read_get_compat(
+    device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
+    addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
+    length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
+    ip: Optional[str] = Query(None, description="PLCのIPアドレス（省略時は環境変数使用）"),
+    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
+):
     """後方互換性のため、/api/プレフィックスなしでもアクセス可能"""
     return api_read(ReadRequest(device=device, addr=addr, length=length,
                                 ip=ip, port=port))
@@ -280,6 +301,7 @@ def api_read_get_compat(device: str, addr: int, length: int,
 
 @app.post("/api/batch_read", response_model=BatchReadResponse,
           tags=["Batch Operations"],
+          operation_id="batch_read_devices",
           summary="複数デバイス一括読み取り",
           description="複数のPLCデバイスを一括で読み取ります。MCプロトコルのrandomread機能を活用した効率的な読み取りを行います。")
 def api_batch_read(req: BatchReadRequest):
@@ -340,24 +362,161 @@ def api_batch_read_status():
 
 
 # ──────────────────── OpenAPI仕様ファイル出力 ────────────────────
+def _convert_openapi_to_swagger2(openapi_schema: dict) -> dict:
+    """
+    OpenAPI 3.x を Swagger 2.0 に変換
+
+    Args:
+        openapi_schema: OpenAPI 3.x 仕様
+
+    Returns:
+        dict: Swagger 2.0 仕様
+    """
+    swagger = {
+        "swagger": "2.0",
+        "info": openapi_schema.get("info", {}),
+        "paths": {},
+        "definitions": {},
+        "tags": openapi_schema.get("tags", [])
+    }
+
+    # serversをhost/basePath/schemesに変換
+    servers = openapi_schema.get("servers", [])
+    if servers:
+        first_server = servers[0]
+        url = first_server.get("url", "http://localhost:8000")
+
+        # URLを解析
+        import re
+        match = re.match(r"^(https?)://([^:/]+)(?::(\d+))?(/.*)?$", url)
+        if match:
+            scheme = match.group(1)
+            host = match.group(2)
+            port = match.group(3)
+            base_path = match.group(4) or ""
+
+            swagger["schemes"] = [scheme]
+            swagger["host"] = f"{host}:{port}" if port else host
+            swagger["basePath"] = base_path
+
+    # pathsを変換
+    for path, path_item in openapi_schema.get("paths", {}).items():
+        swagger["paths"][path] = {}
+
+        for method, operation in path_item.items():
+            if method not in ["get", "post", "put", "delete", "patch", "options", "head"]:
+                continue
+
+            swagger_operation = {
+                "summary": operation.get("summary", ""),
+                "description": operation.get("description", ""),
+                "operationId": operation.get("operationId", f"{method}_{path}"),
+                "tags": operation.get("tags", []),
+                "produces": ["application/json"],
+                "responses": {}
+            }
+
+            # parametersを変換
+            parameters = []
+
+            # path/query parameters
+            for param in operation.get("parameters", []):
+                swagger_param = {
+                    "name": param.get("name"),
+                    "in": param.get("in"),
+                    "required": param.get("required", False),
+                    "description": param.get("description", "")
+                }
+
+                # schemaからtypeを抽出
+                schema = param.get("schema", {})
+                if "anyOf" in schema:
+                    # anyOf の最初の型を使用
+                    first_type = schema["anyOf"][0] if schema["anyOf"] else {}
+                    swagger_param["type"] = first_type.get("type", "string")
+                else:
+                    swagger_param["type"] = schema.get("type", "string")
+                    if swagger_param["type"] == "integer":
+                        swagger_param["format"] = schema.get("format", "int32")
+
+                parameters.append(swagger_param)
+
+            # requestBodyをbody parameterに変換
+            if "requestBody" in operation:
+                request_body = operation["requestBody"]
+                content = request_body.get("content", {})
+                json_content = content.get("application/json", {})
+                schema_ref = json_content.get("schema", {})
+
+                body_param = {
+                    "name": "body",
+                    "in": "body",
+                    "required": request_body.get("required", False),
+                    "schema": schema_ref
+                }
+                parameters.append(body_param)
+                swagger_operation["consumes"] = ["application/json"]
+
+            if parameters:
+                swagger_operation["parameters"] = parameters
+
+            # responsesを変換
+            for status_code, response in operation.get("responses", {}).items():
+                swagger_response = {
+                    "description": response.get("description", "")
+                }
+
+                content = response.get("content", {})
+                json_content = content.get("application/json", {})
+                if "schema" in json_content:
+                    swagger_response["schema"] = json_content["schema"]
+
+                swagger_operation["responses"][status_code] = swagger_response
+
+            swagger["paths"][path][method] = swagger_operation
+
+    # components/schemas を definitions に変換
+    components = openapi_schema.get("components", {})
+    schemas = components.get("schemas", {})
+
+    for schema_name, schema_def in schemas.items():
+        swagger["definitions"][schema_name] = schema_def
+
+    return swagger
+
+
 def _generate_openapi_files():
     """
-    起動時にOpenAPI仕様ファイル（JSON/YAML）を生成
+    起動時にOpenAPI仕様ファイル（JSON/YAML）とSwagger 2.0仕様を生成
     """
     try:
-        # OpenAPI仕様を取得
+        # OpenAPI 3.x仕様を取得
         openapi_schema = app.openapi()
 
-        # JSON形式で保存
+        # OpenAPI 3.x - JSON形式で保存
         with open("openapi.json", "w", encoding="utf-8") as f:
             json.dump(openapi_schema, f, indent=2, ensure_ascii=False)
 
-        # YAML形式で保存
+        # OpenAPI 3.x - YAML形式で保存
         with open("openapi.yaml", "w", encoding="utf-8") as f:
             yaml.dump(openapi_schema, f, default_flow_style=False,
                      allow_unicode=True, sort_keys=False)
 
-        print("OpenAPI仕様ファイルを生成しました: openapi.json, openapi.yaml")
+        # Swagger 2.0に変換
+        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
+
+        # Swagger 2.0 - JSON形式で保存
+        with open("swagger.json", "w", encoding="utf-8") as f:
+            json.dump(swagger_schema, f, indent=2, ensure_ascii=False)
+
+        # Swagger 2.0 - YAML形式で保存
+        with open("swagger.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(swagger_schema, f, default_flow_style=False,
+                     allow_unicode=True, sort_keys=False)
+
+        print("OpenAPI仕様ファイルを生成しました:")
+        print("  - openapi.json, openapi.yaml (OpenAPI 3.1)")
+        print("  - swagger.json, swagger.yaml (Swagger 2.0 - Copilot Studio用)")
 
     except Exception as e:
         print(f"OpenAPI仕様ファイル生成エラー: {e}")
@@ -402,6 +561,48 @@ def download_openapi_yaml():
         raise HTTPException(status_code=500, detail=f"OpenAPI YAML生成エラー: {str(e)}")
 
 
+@app.get("/api/openapi/swagger", tags=["OpenAPI Schema"],
+         summary="Swagger 2.0仕様ファイル（JSON）のダウンロード",
+         description="Swagger 2.0仕様をJSON形式でダウンロードします（Copilot Studio用）")
+def download_swagger_json():
+    """Swagger 2.0仕様ファイル（JSON）をダウンロード"""
+    try:
+        openapi_schema = app.openapi()
+        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
+
+        return JSONResponse(
+            content=swagger_schema,
+            headers={
+                "Content-Disposition": "attachment; filename=swagger.json",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Swagger 2.0 JSON生成エラー: {str(e)}")
+
+
+@app.get("/api/openapi/swagger/yaml", tags=["OpenAPI Schema"],
+         summary="Swagger 2.0仕様ファイル（YAML）のダウンロード",
+         description="Swagger 2.0仕様をYAML形式でダウンロードします（Copilot Studio用）")
+def download_swagger_yaml():
+    """Swagger 2.0仕様ファイル（YAML）をダウンロード"""
+    try:
+        openapi_schema = app.openapi()
+        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
+        yaml_content = yaml.dump(swagger_schema, default_flow_style=False,
+                                allow_unicode=True, sort_keys=False)
+
+        return PlainTextResponse(
+            content=yaml_content,
+            headers={
+                "Content-Disposition": "attachment; filename=swagger.yaml",
+                "Content-Type": "application/x-yaml"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Swagger 2.0 YAML生成エラー: {str(e)}")
+
+
 @app.get("/api/openapi/status", tags=["OpenAPI Schema"],
          summary="OpenAPI仕様生成機能の状態確認",
          description="OpenAPI仕様ファイル生成機能の状態とサポート情報を取得します")
@@ -413,20 +614,30 @@ def api_openapi_status():
 
     json_exists = os.path.exists("openapi.json")
     yaml_exists = os.path.exists("openapi.yaml")
+    swagger_json_exists = os.path.exists("swagger.json")
+    swagger_yaml_exists = os.path.exists("swagger.yaml")
 
     return {
         "openapi_generation_available": True,
         "file_generation_status": {
-            "json_file_exists": json_exists,
-            "yaml_file_exists": yaml_exists,
+            "openapi_json_exists": json_exists,
+            "openapi_yaml_exists": yaml_exists,
+            "swagger_json_exists": swagger_json_exists,
+            "swagger_yaml_exists": swagger_yaml_exists,
             "auto_generation_on_startup": True
         },
-        "supported_formats": ["JSON", "YAML"],
-        "download_endpoints": {
-            "json": "/api/openapi/json",
-            "yaml": "/api/openapi/yaml"
+        "supported_formats": {
+            "openapi_3_1": ["JSON", "YAML"],
+            "swagger_2_0": ["JSON", "YAML"]
         },
-        "version": "1.1.0"
+        "download_endpoints": {
+            "openapi_json": "/api/openapi/json",
+            "openapi_yaml": "/api/openapi/yaml",
+            "swagger_json": "/api/openapi/swagger",
+            "swagger_yaml": "/api/openapi/swagger/yaml"
+        },
+        "copilot_studio_recommendation": "swagger_json または swagger_yaml を使用してください",
+        "version": "1.2.0"
     }
 
 
