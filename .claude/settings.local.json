@@ -5,7 +5,8 @@
       "Bash(git add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nコンピューター名（ホスト名）での接続機能を追加\n\n新機能:\n- plc_hostパラメータを追加（コンピューター名またはIPアドレス指定可能）\n- 自動ホスト名解決機能を実装\n- 優先順位: plc_host > ip > 環境変数\n\n実装内容:\nplc_operations.py:\n- resolve_hostname()関数を追加（ホスト名→IP自動変換）\n- PLCConnectionConfigクラスを拡張\n  - plc_hostパラメータ追加\n  - 元のホスト名を保持して表示（PLC-SERVER-01→192.168.1.100:5511）\n\ngateway.py:\n- ReadRequest/BatchReadRequestにplc_hostフィールド追加\n- すべてのエンドポイントでplc_hostをサポート\n  - POST /api/read\n  - GET /api/read/{device}/{addr}/{length}\n  - GET /{device}/{addr}/{length}\n  - POST /api/batch_read\n\nCOPILOT_STUDIO_SETUP.md:\n- コンピューター名での接続設定セクションを追加\n- 使用例とパラメータ説明を更新\n\nOpenAPI仕様:\n- plc_hostパラメータを反映\n- Swagger 2.0仕様も更新\n\n使用例:\nPOST /api/read\n{\n  \"device\": \"D\",\n  \"addr\": 100,\n  \"length\": 1,\n  \"plc_host\": \"PLC-SERVER-01\"\n}\n\n後方互換性:\n- 既存のipパラメータも引き続き動作\n- plc_hostが優先される\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
