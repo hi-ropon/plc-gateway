@@ -3,7 +3,7 @@ PLC Operations
 ==============
 
 PLC通信の共通ロジック
-REST APIとMCPサーバーで共有される処理
+REST APIで使用される処理
 """
 
 import os

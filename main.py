@@ -3,7 +3,7 @@
 PLC Gateway 統合起動スクリプト
 ==============================
 
-FastAPI REST API、MCPサーバー、または両方を同時に起動する統合スクリプト
+FastAPI REST API を起動するためのスクリプト
 """
 
 import asyncio
@@ -36,7 +36,6 @@ class ServiceManager:
 
     def __init__(self):
         self.rest_process: Optional[subprocess.Popen] = None
-        self.mcp_process: Optional[subprocess.Popen] = None
         self.rest_thread: Optional[threading.Thread] = None
         self.shutdown_event = threading.Event()
 
@@ -112,48 +111,6 @@ class ServiceManager:
             logger.error(f"REST API起動エラー: {e}")
             raise
 
-    def start_mcp_server(self):
-        """
-        MCPサーバーを起動
-        """
-        logger.info("🔌 MCP サーバーを起動中...")
-
-        try:
-            # MCPサーバーをsubprocessで起動
-            self.mcp_process = subprocess.Popen(
-                [sys.executable, "mcp_server.py"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                text=True,
-                bufsize=0  # リアルタイム出力のため
-            )
-
-            logger.info("✅ MCP サーバーが起動しました")
-            logger.info("🔌 MCPクライアントからの接続を待機中...")
-
-            # MCPサーバーのログ出力を監視
-            def monitor_mcp_logs():
-                while not self.shutdown_event.is_set():
-                    try:
-                        if self.mcp_process and self.mcp_process.poll() is None:
-                            output = self.mcp_process.stderr.readline()
-                            if output:
-                                logger.info(f"MCP: {output.strip()}")
-                        else:
-                            break
-                    except Exception as e:
-                        logger.error(f"MCPログ監視エラー: {e}")
-                        break
-                    time.sleep(0.1)
-
-            log_thread = threading.Thread(target=monitor_mcp_logs, daemon=True)
-            log_thread.start()
-
-        except Exception as e:
-            logger.error(f"MCP サーバー起動エラー: {e}")
-            raise
-
     def stop_services(self):
         """
         全サービスを停止
@@ -174,19 +131,6 @@ class ServiceManager:
                 self.rest_process.kill()
             except Exception as e:
                 logger.error(f"REST API サーバー停止エラー: {e}")
-
-        # MCPサーバーを停止
-        if self.mcp_process:
-            logger.info("MCP サーバーを停止中...")
-            try:
-                self.mcp_process.terminate()
-                self.mcp_process.wait(timeout=5)
-                logger.info("✅ MCP サーバーを停止しました")
-            except subprocess.TimeoutExpired:
-                logger.warning("MCP サーバーの強制終了")
-                self.mcp_process.kill()
-            except Exception as e:
-                logger.error(f"MCP サーバー停止エラー: {e}")
 
         logger.info("✅ 全サービスが停止しました")
 
@@ -218,7 +162,7 @@ def print_banner():
     banner = f"""
 ============================================================
                 PLC Gateway 統合起動システム
-              FastAPI + OpenAPI + MCP Server
+                      FastAPI REST API
                       Version {__version__:^8}
 ============================================================
     """
@@ -238,38 +182,29 @@ def print_service_info(args):
     logger.info(f"🏷️  バージョン: PLC Gateway v{version_info['plc_gateway_version']}")
     logger.info("📋 起動設定:")
 
-    if args.rest_api:
-        # 本番モード時のホスト設定
-        host = "0.0.0.0" if args.production else args.host
+    # 本番モード時のホスト設定
+    host = "0.0.0.0" if args.production else args.host
 
-        # モード表示
-        if args.production:
-            logger.info("  ⚠️  本番モード: 外部アクセス許可")
-        else:
-            logger.info("  🔒 開発モード: localhostのみアクセス可能")
+    # モード表示
+    if args.production:
+        logger.info("  ⚠️  本番モード: 外部アクセス許可")
+    else:
+        logger.info("  🔒 開発モード: localhostのみアクセス可能")
 
-        # アクセス可能なURLを取得
-        local_ip = get_local_ip()
-        hostname = get_hostname()
+    # アクセス可能なURLを取得
+    local_ip = get_local_ip()
+    hostname = get_hostname()
 
-        logger.info(f"  🌐 FastAPI REST API ({host}):")
-        logger.info(f"     - http://localhost:{args.port} (ローカル)")
+    logger.info(f"  🌐 FastAPI REST API ({host}):")
+    logger.info(f"     - http://localhost:{args.port} (ローカル)")
 
-        if args.production:
-            if local_ip != "127.0.0.1":
-                logger.info(f"     - http://{local_ip}:{args.port} (IPアドレス)")
-            if hostname != "localhost":
-                logger.info(f"     - http://{hostname}:{args.port} (ホスト名)")
-        else:
-            logger.info("     - 外部アクセス: 無効（--productionで有効化）")
-
-        logger.info(f"     - OpenAPI仕様: /docs")
-        logger.info(f"     - JSON仕様: /api/openapi/json")
-        logger.info(f"     - YAML仕様: /api/openapi/yaml")
-
-    if args.mcp_server:
-        logger.info("  🔌 MCP Server: stdio通信")
-        logger.info("     - AI統合: MCPクライアント経由でPLCアクセス")
+    if args.production:
+        if local_ip != "127.0.0.1":
+            logger.info(f"     - http://{local_ip}:{args.port} (IPアドレス)")
+        if hostname != "localhost":
+            logger.info(f"     - http://{hostname}:{args.port} (ホスト名)")
+    else:
+        logger.info("     - 外部アクセス: 無効（--productionで有効化）")
 
     # 環境変数の表示
     plc_ip = os.getenv("PLC_IP", "127.0.0.1")
@@ -288,38 +223,19 @@ def main():
         epilog="""
 使用例:
   # 開発モード（localhostのみ）
-  python main.py --rest-api --mcp-server
+  python main.py
 
   # 本番モード（外部アクセス許可）
-  python main.py --rest-api --mcp-server --production
-
-  # REST APIのみ起動
-  python main.py --rest-api
-
-  # MCPサーバーのみ起動
-  python main.py --mcp-server
+  python main.py --production
 
   # カスタムポートで起動
-  python main.py --rest-api --port 9000
+  python main.py --port 9000
 
 環境変数設定:
   PLC_IP=192.168.1.100          # PLCのIPアドレス
   PLC_PORT=5511                 # PLCのポート番号
   PLC_TIMEOUT_SEC=3.0           # タイムアウト秒数
-  MCP_LOG_LEVEL=DEBUG           # MCPログレベル
         """
-    )
-
-    parser.add_argument(
-        "--rest-api",
-        action="store_true",
-        help="FastAPI REST APIを起動"
-    )
-
-    parser.add_argument(
-        "--mcp-server",
-        action="store_true",
-        help="MCPサーバーを起動"
     )
 
     parser.add_argument(
@@ -356,10 +272,6 @@ def main():
 
     args = parser.parse_args()
 
-    # 起動オプションの検証
-    if not args.rest_api and not args.mcp_server:
-        parser.error("--rest-api または --mcp-server のいずれかを指定してください")
-
     # ログレベル設定
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
@@ -374,25 +286,17 @@ def main():
 
     try:
         # FastAPI REST API起動
-        if args.rest_api:
-            # 本番モード時のホスト設定
-            host = "0.0.0.0" if args.production else args.host
-
-            service_manager.start_rest_api(
-                host=host,
-                port=args.port,
-                reload=not args.no_reload
-            )
-
-        # MCPサーバー起動
-        if args.mcp_server:
-            service_manager.start_mcp_server()
+        host = "0.0.0.0" if args.production else args.host
+        service_manager.start_rest_api(
+            host=host,
+            port=args.port,
+            reload=not args.no_reload
+        )
 
         logger.info("🚀 すべてのサービスが正常に起動しました")
 
         # ネットワーク診断の実行と表示（REST APIが起動している場合）
-        if args.rest_api:
-            print_network_diagnosis(args.port)
+        print_network_diagnosis(args.port)
 
         logger.info("終了するには Ctrl+C を押してください")
 

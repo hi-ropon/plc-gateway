@@ -5,12 +5,5 @@ uvicorn[standard]
 # Data Validation
 pydantic
 
-# OpenAPI Schema Export
-PyYAML
-
-# MCP Protocol Support
-mcp
-asyncio-mqtt
-
 # PLC Communication
 # pymcprotocol - removed, using mcprotocol instead

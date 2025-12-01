@@ -3,21 +3,17 @@
 # FastAPI Gateway ─ 1810 / 1811 File-API & Device Read
 # ------------------------------------------------------------
 import os
-import json
-import yaml
-import base64
 import re
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Response, Path, Query
+from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 from mcprotocol import Type3E
 from mcprotocol.errors import MCProtocolError
 from device_readers.base_device_reader import DeviceReadResult
 from version import __version__, format_version_string
-from network_utils import get_local_ip, get_hostname, get_openapi_servers, print_access_info
+from network_utils import print_access_info
 
 # ──────────────────── 環境変数 ────────────────────
 PLC_IP      = os.getenv("PLC_IP",         "127.0.0.1")
@@ -38,21 +34,6 @@ def startup_message():
     # アクセス情報を表示
     print_access_info(port=8000)
 
-    # API仕様ファイル
-    local_ip = get_local_ip()
-    hostname = get_hostname()
-
-    print("APIドキュメント:")
-    print(f"  - http://localhost:8000/docs")
-    if local_ip != "127.0.0.1":
-        print(f"  - http://{local_ip}:8000/docs")
-    if hostname != "localhost":
-        print(f"  - http://{hostname}:8000/docs")
-
-    print("\nOpenAPI仕様:")
-    print(f"  - http://localhost:8000/api/openapi/json")
-    print(f"  - http://localhost:8000/api/openapi/yaml\n")
-
 # FastAPIアプリケーション起動時に実行
 if __name__ != "__main__":
     startup_message()
@@ -60,7 +41,7 @@ if __name__ != "__main__":
 # ──────────────────── FastAPI ────────────────────
 app = FastAPI(
     title="PLC Gateway API",
-    description="三菱PLCとMCプロトコルで通信するためのGateway API。Copilot Studioなどの外部ツールやMCPクライアントから利用可能です。",
+    description="三菱PLCとMCプロトコルで通信するためのGateway API。",
     version=__version__,
     contact={
         "name": "PLC Gateway API開発チーム",
@@ -70,26 +51,7 @@ app = FastAPI(
     license_info={
         "name": "MIT License",
         "url": "https://opensource.org/licenses/MIT"
-    },
-    servers=get_openapi_servers(port=8000),
-    openapi_tags=[
-        {
-            "name": "Device Read",
-            "description": "PLCデバイス読み取り操作"
-        },
-        {
-            "name": "Batch Operations",
-            "description": "バッチ読み取り操作"
-        },
-        {
-            "name": "System Status",
-            "description": "システム状態確認"
-        },
-        {
-            "name": "OpenAPI Schema",
-            "description": "OpenAPI仕様ファイルの取得"
-        }
-    ]
+    }
 )
 
 # ──────────────────── CORS設定 ────────────────────
@@ -368,307 +330,10 @@ def api_batch_read_status():
     }
 
 
-# ──────────────────── OpenAPI仕様ファイル出力 ────────────────────
-def _convert_openapi_to_swagger2(openapi_schema: dict) -> dict:
-    """
-    OpenAPI 3.x を Swagger 2.0 に変換
-
-    Args:
-        openapi_schema: OpenAPI 3.x 仕様
-
-    Returns:
-        dict: Swagger 2.0 仕様
-    """
-    swagger = {
-        "swagger": "2.0",
-        "info": openapi_schema.get("info", {}),
-        "paths": {},
-        "definitions": {},
-        "tags": openapi_schema.get("tags", [])
-    }
-
-    # serversをhost/basePath/schemesに変換
-    servers = openapi_schema.get("servers", [])
-    if servers:
-        first_server = servers[0]
-        url = first_server.get("url", "http://localhost:8000")
-
-        # URLを解析
-        import re
-        match = re.match(r"^(https?)://([^:/]+)(?::(\d+))?(/.*)?$", url)
-        if match:
-            scheme = match.group(1)
-            host = match.group(2)
-            port = match.group(3)
-            base_path = match.group(4) or ""
-
-            swagger["schemes"] = [scheme]
-            swagger["host"] = f"{host}:{port}" if port else host
-            swagger["basePath"] = base_path
-
-    # pathsを変換
-    for path, path_item in openapi_schema.get("paths", {}).items():
-        swagger["paths"][path] = {}
-
-        for method, operation in path_item.items():
-            if method not in ["get", "post", "put", "delete", "patch", "options", "head"]:
-                continue
-
-            swagger_operation = {
-                "summary": operation.get("summary", ""),
-                "description": operation.get("description", ""),
-                "operationId": operation.get("operationId", f"{method}_{path}"),
-                "tags": operation.get("tags", []),
-                "produces": ["application/json"],
-                "responses": {}
-            }
-
-            # parametersを変換
-            parameters = []
-
-            # path/query parameters
-            for param in operation.get("parameters", []):
-                swagger_param = {
-                    "name": param.get("name"),
-                    "in": param.get("in"),
-                    "required": param.get("required", False),
-                    "description": param.get("description", "")
-                }
-
-                # schemaからtypeを抽出
-                schema = param.get("schema", {})
-                if "anyOf" in schema:
-                    # anyOf の最初の型を使用
-                    first_type = schema["anyOf"][0] if schema["anyOf"] else {}
-                    swagger_param["type"] = first_type.get("type", "string")
-                else:
-                    swagger_param["type"] = schema.get("type", "string")
-                    if swagger_param["type"] == "integer":
-                        swagger_param["format"] = schema.get("format", "int32")
-
-                parameters.append(swagger_param)
-
-            # requestBodyをbody parameterに変換
-            if "requestBody" in operation:
-                request_body = operation["requestBody"]
-                content = request_body.get("content", {})
-                json_content = content.get("application/json", {})
-                schema_ref = json_content.get("schema", {})
-
-                body_param = {
-                    "name": "body",
-                    "in": "body",
-                    "required": request_body.get("required", False),
-                    "schema": schema_ref
-                }
-                parameters.append(body_param)
-                swagger_operation["consumes"] = ["application/json"]
-
-            if parameters:
-                swagger_operation["parameters"] = parameters
-
-            # responsesを変換
-            for status_code, response in operation.get("responses", {}).items():
-                swagger_response = {
-                    "description": response.get("description", "")
-                }
-
-                content = response.get("content", {})
-                json_content = content.get("application/json", {})
-                if "schema" in json_content:
-                    swagger_response["schema"] = json_content["schema"]
-
-                swagger_operation["responses"][status_code] = swagger_response
-
-            swagger["paths"][path][method] = swagger_operation
-
-    # components/schemas を definitions に変換
-    components = openapi_schema.get("components", {})
-    schemas = components.get("schemas", {})
-
-    for schema_name, schema_def in schemas.items():
-        swagger["definitions"][schema_name] = schema_def
-
-    return swagger
-
-
-def _generate_openapi_files():
-    """
-    起動時にOpenAPI仕様ファイル（JSON/YAML）とSwagger 2.0仕様を生成
-    """
-    try:
-        # OpenAPI 3.x仕様を取得
-        openapi_schema = app.openapi()
-
-        # OpenAPI 3.x - JSON形式で保存
-        with open("openapi.json", "w", encoding="utf-8") as f:
-            json.dump(openapi_schema, f, indent=2, ensure_ascii=False)
-
-        # OpenAPI 3.x - YAML形式で保存
-        with open("openapi.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(openapi_schema, f, default_flow_style=False,
-                     allow_unicode=True, sort_keys=False)
-
-        # Swagger 2.0に変換
-        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
-
-        # Swagger 2.0 - JSON形式で保存
-        with open("swagger.json", "w", encoding="utf-8") as f:
-            json.dump(swagger_schema, f, indent=2, ensure_ascii=False)
-
-        # Swagger 2.0 - YAML形式で保存
-        with open("swagger.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(swagger_schema, f, default_flow_style=False,
-                     allow_unicode=True, sort_keys=False)
-
-        print("OpenAPI仕様ファイルを生成しました:")
-        print("  - openapi.json, openapi.yaml (OpenAPI 3.1)")
-        print("  - swagger.json, swagger.yaml (Swagger 2.0 - Copilot Studio用)")
-
-    except Exception as e:
-        print(f"OpenAPI仕様ファイル生成エラー: {e}")
-
-
-@app.get("/api/openapi/json", tags=["OpenAPI Schema"],
-         summary="OpenAPI仕様ファイル（JSON）のダウンロード",
-         description="OpenAPI仕様をJSON形式でダウンロードします")
-def download_openapi_json():
-    """OpenAPI仕様ファイル（JSON）をダウンロード"""
-    try:
-        openapi_schema = app.openapi()
-        return JSONResponse(
-            content=openapi_schema,
-            headers={
-                "Content-Disposition": "attachment; filename=openapi.json",
-                "Content-Type": "application/json"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OpenAPI JSON生成エラー: {str(e)}")
-
-
-@app.get("/api/openapi/yaml", tags=["OpenAPI Schema"],
-         summary="OpenAPI仕様ファイル（YAML）のダウンロード",
-         description="OpenAPI仕様をYAML形式でダウンロードします")
-def download_openapi_yaml():
-    """OpenAPI仕様ファイル（YAML）をダウンロード"""
-    try:
-        openapi_schema = app.openapi()
-        yaml_content = yaml.dump(openapi_schema, default_flow_style=False,
-                                allow_unicode=True, sort_keys=False)
-
-        return PlainTextResponse(
-            content=yaml_content,
-            headers={
-                "Content-Disposition": "attachment; filename=openapi.yaml",
-                "Content-Type": "application/x-yaml"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OpenAPI YAML生成エラー: {str(e)}")
-
-
-@app.get("/api/openapi/swagger", tags=["OpenAPI Schema"],
-         summary="Swagger 2.0仕様ファイル（JSON）のダウンロード",
-         description="Swagger 2.0仕様をJSON形式でダウンロードします（Copilot Studio用）")
-def download_swagger_json():
-    """Swagger 2.0仕様ファイル（JSON）をダウンロード"""
-    try:
-        openapi_schema = app.openapi()
-        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
-
-        return JSONResponse(
-            content=swagger_schema,
-            headers={
-                "Content-Disposition": "attachment; filename=swagger.json",
-                "Content-Type": "application/json"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Swagger 2.0 JSON生成エラー: {str(e)}")
-
-
-@app.get("/api/openapi/swagger/yaml", tags=["OpenAPI Schema"],
-         summary="Swagger 2.0仕様ファイル（YAML）のダウンロード",
-         description="Swagger 2.0仕様をYAML形式でダウンロードします（Copilot Studio用）")
-def download_swagger_yaml():
-    """Swagger 2.0仕様ファイル（YAML）をダウンロード"""
-    try:
-        openapi_schema = app.openapi()
-        swagger_schema = _convert_openapi_to_swagger2(openapi_schema)
-        yaml_content = yaml.dump(swagger_schema, default_flow_style=False,
-                                allow_unicode=True, sort_keys=False)
-
-        return PlainTextResponse(
-            content=yaml_content,
-            headers={
-                "Content-Disposition": "attachment; filename=swagger.yaml",
-                "Content-Type": "application/x-yaml"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Swagger 2.0 YAML生成エラー: {str(e)}")
-
-
-@app.get("/api/openapi/status", tags=["OpenAPI Schema"],
-         summary="OpenAPI仕様生成機能の状態確認",
-         description="OpenAPI仕様ファイル生成機能の状態とサポート情報を取得します")
-def api_openapi_status():
-    """
-    OpenAPI仕様生成機能の状態確認
-    """
-    import os
-
-    json_exists = os.path.exists("openapi.json")
-    yaml_exists = os.path.exists("openapi.yaml")
-    swagger_json_exists = os.path.exists("swagger.json")
-    swagger_yaml_exists = os.path.exists("swagger.yaml")
-
-    return {
-        "openapi_generation_available": True,
-        "file_generation_status": {
-            "openapi_json_exists": json_exists,
-            "openapi_yaml_exists": yaml_exists,
-            "swagger_json_exists": swagger_json_exists,
-            "swagger_yaml_exists": swagger_yaml_exists,
-            "auto_generation_on_startup": True
-        },
-        "supported_formats": {
-            "openapi_3_1": ["JSON", "YAML"],
-            "swagger_2_0": ["JSON", "YAML"]
-        },
-        "download_endpoints": {
-            "openapi_json": "/api/openapi/json",
-            "openapi_yaml": "/api/openapi/yaml",
-            "swagger_json": "/api/openapi/swagger",
-            "swagger_yaml": "/api/openapi/swagger/yaml"
-        },
-        "copilot_studio_recommendation": "swagger_json または swagger_yaml を使用してください",
-        "version": "1.2.0"
-    }
-
-
 # ──────────────────── 起動時処理 ────────────────────
 @app.on_event("startup")
 async def startup_event():
-    """
-    アプリケーション起動時の処理
-    """
+    """アプリケーション起動時の処理"""
     print("PLC Gateway API を起動中...")
     print(f"PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s)")
-
-    # OpenAPI仕様ファイルを生成
-    _generate_openapi_files()
-
     print("PLC Gateway API が正常に起動しました")
-
-    # アクセス可能なURLを表示
-    local_ip = get_local_ip()
-    hostname = get_hostname()
-
-    print("\nアクセス可能なURL:")
-    print(f"  - http://localhost:8000/docs (ローカル)")
-    if local_ip != "127.0.0.1":
-        print(f"  - http://{local_ip}:8000/docs (IPアドレス)")
-    if hostname != "localhost":
-        print(f"  - http://{hostname}:8000/docs (ホスト名)")

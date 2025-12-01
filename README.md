@@ -1,12 +1,10 @@
 # PLC Gateway API
 
-三菱PLCとMCプロトコルで通信するための統合Gateway API。FastAPI REST API、OpenAPI仕様出力、MCPサーバーの3つの方法でPLCデバイスにアクセス可能です。
+三菱PLCとMCプロトコルで通信するための統合Gateway API。FastAPI REST APIでPLCデバイスにアクセスできます。
 
 ## 🚀 機能概要
 
 - **FastAPI REST API**: HTTP経由でPLCデバイス読み取り
-- **OpenAPI仕様出力**: 標準的なAPI仕様ファイル（JSON/YAML）の生成・ダウンロード
-- **MCPサーバー**: AI統合用Model Context Protocol対応
 - **バッチ読み取り**: 複数デバイスの効率的な一括読み取り
 - **統合起動システム**: 個別起動または統合起動
 - **多様なデバイス対応**: ワードデバイス（D, W, R, ZR）とビットデバイス（X, Y, M）をサポート
@@ -47,36 +45,27 @@ pip install -r requirements.txt
 export PLC_IP=192.168.1.100      # PLCのIPアドレス (デフォルト: 127.0.0.1)
 export PLC_PORT=5511             # PLCのポート番号 (デフォルト: 5511)
 export PLC_TIMEOUT_SEC=3.0       # タイムアウト秒数 (デフォルト: 3.0)
-export MCP_LOG_LEVEL=INFO        # MCPログレベル (デフォルト: INFO)
 ```
 
 ## 🚀 起動方法
 
-### 方法1: 統合起動（推奨）
+### 統合起動（推奨）
 ```bash
-# REST API + MCPサーバー同時起動
-python main.py --rest-api --mcp-server
+# 開発モード（ホットリロード）
+python main.py
 
-# REST APIのみ
-python main.py --rest-api
-
-# MCPサーバーのみ
-python main.py --mcp-server
+# 本番モード（外部アクセス許可）
+python main.py --production
 
 # カスタムポートで起動
-python main.py --rest-api --port 9000
+python main.py --port 9000
 ```
 
-### 方法2: 個別起動
+### uvicorn での直接起動
 
 #### FastAPI REST API
 ```bash
 uvicorn gateway:app --reload --host 0.0.0.0 --port 8000
-```
-
-#### MCPサーバー
-```bash
-python mcp_server.py
 ```
 
 ## 📚 利用方法
@@ -105,51 +94,6 @@ curl -X POST "http://localhost:8000/api/batch_read" \
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-### 2. OpenAPI仕様ファイル
-
-#### 自動生成ファイル
-起動時に自動生成されます：
-- `openapi.json`: JSON形式のOpenAPI仕様
-- `openapi.yaml`: YAML形式のOpenAPI仕様
-
-#### ダウンロードエンドポイント
-```bash
-# JSON形式でダウンロード
-curl "http://localhost:8000/api/openapi/json" -o openapi.json
-
-# YAML形式でダウンロード
-curl "http://localhost:8000/api/openapi/yaml" -o openapi.yaml
-
-# 生成状態確認
-curl "http://localhost:8000/api/openapi/status"
-```
-
-### 3. MCPサーバー（AI統合）
-
-MCPクライアント（Claude Codeなど）から以下のツールを利用可能：
-
-#### 利用可能なツール
-- `read_plc_device`: 単一デバイス読み取り
-- `batch_read_plc`: バッチ読み取り
-- `parse_device_spec`: デバイス指定解析
-- `get_supported_devices`: サポートデバイス一覧
-- `test_plc_connection`: PLC接続テスト
-- `validate_device_spec`: デバイス指定妥当性チェック
-
-#### MCPクライアント設定例
-```json
-{
-  "mcpServers": {
-    "plc-gateway": {
-      "command": "python",
-      "args": ["mcp_server.py"],
-      "cwd": "/path/to/gateway"
-    }
-  }
-}
-```
-
-
 ## 🎯 使用例
 
 ### REST API使用例
@@ -167,17 +111,6 @@ response = requests.post('http://localhost:8000/api/batch_read',
     json={'devices': ['D100', 'M200:3', 'X1A']})
 result = response.json()
 print(f"成功: {result['successful_devices']}/{result['total_devices']}")
-```
-
-### MCPツール使用例（AI経由）
-
-```
-AI: PLCのD100レジスタを読み取ってください
-
-→ read_plc_device(device="D", address=100, length=1)
-→ 📊 PLC読み取り成功
-   デバイス: D100
-   値: [42]
 ```
 
 ## API エンドポイント詳細
@@ -238,7 +171,6 @@ GET /api/read/D/100/1?ip=192.168.1.100&port=5511
 ```
 gateway/
 ├── gateway.py              # FastAPI REST API
-├── mcp_server.py          # MCPサーバー
 ├── plc_operations.py      # 共通PLC操作ロジック
 ├── main.py               # 統合起動スクリプト
 ├── batch_device_reader.py # バッチ読み取り管理
@@ -249,8 +181,6 @@ gateway/
 │   ├── word_device_reader.py
 │   └── bit_device_reader.py
 ├── requirements.txt      # 依存関係
-├── openapi.json         # 生成されるOpenAPI仕様（JSON）
-├── openapi.yaml         # 生成されるOpenAPI仕様（YAML）
 ├── CLAUDE.md           # Claude Code用ガイド
 └── README.md           # このファイル
 ```
@@ -269,7 +199,6 @@ gateway/
 | `PLC_IP` | 127.0.0.1 | PLCのIPアドレス |
 | `PLC_PORT` | 5511 | PLCのポート番号 |
 | `PLC_TIMEOUT_SEC` | 3.0 | 通信タイムアウト（秒） |
-| `MCP_LOG_LEVEL` | INFO | MCPサーバーのログレベル |
 
 ### 起動オプション
 
@@ -278,9 +207,9 @@ gateway/
 python main.py --help
 
   --rest-api          FastAPI REST APIを起動
-  --mcp-server        MCPサーバーを起動
   --host HOST         REST APIバインドホスト (デフォルト: 0.0.0.0)
   --port PORT         REST APIポート番号 (デフォルト: 8000)
+  --production        0.0.0.0でバインドして外部アクセスを許可
   --no-reload         ホットリロードを無効化
   --log-level LEVEL   ログレベル (DEBUG/INFO/WARNING/ERROR)
 ```
@@ -298,14 +227,7 @@ curl "http://localhost:8000/api/batch_read_status"
 echo $PLC_IP $PLC_PORT
 ```
 
-#### 2. MCPサーバー接続問題
-```bash
-# MCPサーバーのログレベルを上げる
-export MCP_LOG_LEVEL=DEBUG
-python main.py --mcp-server
-```
-
-#### 3. デバイス指定エラー
+#### 2. デバイス指定エラー
 ```bash
 # デバイス指定の妥当性確認
 curl -X POST "http://localhost:8000/api/read" \
@@ -318,7 +240,6 @@ curl -X POST "http://localhost:8000/api/read" \
 ```
 2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 🚀 すべてのサービスが正常に起動しました
 2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 🌐 FastAPI REST API: http://0.0.0.0:8000
-2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 🔌 MCP Server: stdio通信
 2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 📡 PLC設定: 127.0.0.1:5511 (timeout: 3.0s)
 ```
 

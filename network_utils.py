@@ -75,43 +75,6 @@ def get_server_urls(port: int = 8000, include_localhost: bool = True) -> list:
     return urls
 
 
-def get_openapi_servers(port: int = 8000) -> list:
-    """
-    OpenAPI仕様用のサーバー定義リストを生成
-
-    Args:
-        port: サーバーポート番号
-
-    Returns:
-        list: OpenAPIサーバー定義のリスト
-    """
-    servers = []
-
-    # localhost
-    servers.append({
-        "url": f"http://localhost:{port}",
-        "description": "ローカル開発環境"
-    })
-
-    # IPアドレス
-    local_ip = get_local_ip()
-    if local_ip != "127.0.0.1":
-        servers.append({
-            "url": f"http://{local_ip}:{port}",
-            "description": f"IPアドレスアクセス ({local_ip})"
-        })
-
-    # ホスト名
-    hostname = get_hostname()
-    if hostname != "localhost":
-        servers.append({
-            "url": f"http://{hostname}:{port}",
-            "description": f"ホスト名アクセス ({hostname})"
-        })
-
-    return servers
-
-
 def test_hostname_resolution() -> dict:
     """
     ホスト名解決のテスト

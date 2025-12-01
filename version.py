@@ -13,7 +13,6 @@ __author__ = "PLC Gateway Development Team"
 # コンポーネントバージョン
 COMPONENT_VERSIONS = {
     "rest_api": "1.2.0",
-    "mcp_server": "1.0.0",
     "plc_operations": "1.1.0",
     "batch_reader": "1.0.0"
 }
@@ -22,18 +21,15 @@ COMPONENT_VERSIONS = {
 FEATURES = {
     "1.2.0": [
         "バージョン表示機能追加",
-        "統合起動システム改善",
-        "MCP Gateway Bridge実装"
+        "統合起動システム改善"
     ],
     "1.1.0": [
         "バッチ読み取り機能追加",
-        "OpenAPI仕様自動生成",
         "デバイスリーダー戦略パターン実装"
     ],
     "1.0.0": [
         "初期リリース",
-        "基本的なPLCデバイス読み取り",
-        "MCPサーバー実装"
+        "基本的なPLCデバイス読み取り"
     ]
 }
 
@@ -61,12 +57,6 @@ def get_version_info() -> dict:
         lib_versions["mcprotocol"] = mcprotocol.__version__
     except ImportError:
         lib_versions["mcprotocol"] = "未インストール"
-
-    try:
-        import mcp
-        lib_versions["mcp"] = getattr(mcp, "__version__", "不明")
-    except ImportError:
-        lib_versions["mcp"] = "未インストール"
 
     try:
         import uvicorn
