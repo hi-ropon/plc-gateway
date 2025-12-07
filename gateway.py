@@ -167,21 +167,6 @@ def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[Devi
     Returns:
         List[DeviceReadResult]: 読み取り結果リスト
     """
-    # モジュールキャッシュ問題の解決：強制再読み込み
-    import sys
-    import importlib
-    
-    modules_to_reload = [
-        'batch_device_reader',
-        'device_readers.base_device_reader',
-        'device_readers.bit_device_reader',
-        'device_readers.word_device_reader'
-    ]
-    
-    for module_name in modules_to_reload:
-        if module_name in sys.modules:
-            importlib.reload(sys.modules[module_name])
-    
     from batch_device_reader import BatchDeviceReader
     
     if not device_specs:
@@ -293,12 +278,18 @@ def api_batch_read(req: BatchReadRequest):
             ip=host,
             port=req.port or PLC_PORT
         )
+
+        # Pydanticの型検証を確実に通すため dict に変換
+        results_payload = [
+            r.model_dump() if hasattr(r, "model_dump") else r.dict() if hasattr(r, "dict") else r
+            for r in results
+        ]
         
         # 成功数カウント
-        successful_count = sum(1 for r in results if r.success)
+        successful_count = sum(1 for r in results if getattr(r, "success", False))
         
         return BatchReadResponse(
-            results=results,
+            results=results_payload,  # type: ignore[arg-type]
             total_devices=len(req.devices),
             successful_devices=successful_count
         )
