@@ -94,12 +94,12 @@ class DeviceReader(ABC):
             device_part = device_spec
             length = 1
         
-        # 既知のPLCデバイス種別を明示的にチェック
+        # 既知のPLCデバイス種別を明示的にチェック（長いデバイス名を優先）
         known_devices = [
+            # 2文字デバイス（特殊デバイス・特別リレー/レジスタ）
+            "SM", "SD", "CN", "CC", "CS", "CX", "TN", "TC", "TS", "TX", "SB", "SW", "DX", "DY",
             # 1文字デバイス（標準的なPLCデバイス）
-            "X", "Y", "M", "D", "T", "C", "Z", "H", "L", "F", "V", "B", "R", "W", "S", "U", "N",
-            # 2文字デバイス（特殊デバイス）
-            "CN", "CC", "CS", "CX", "TN", "TC", "TS", "TX", "SB", "SW", "DX", "DY"
+            "X", "Y", "B", "M", "D", "T", "C", "Z", "H", "L", "F", "V", "R", "W", "S", "U", "N",
         ]
         
         device_type = None
@@ -120,10 +120,11 @@ class DeviceReader(ABC):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"デバイス解析失敗: '{device_spec}' - 認識されないデバイス形式")
-            raise ValueError(f"Invalid device specification: {device_spec} - 対応デバイス: X,Y,M,D,T,C,Z,H,L,F,V,B,R,W,S,U,N等")
+            raise ValueError(f"Invalid device specification: {device_spec} - 対応デバイス: X,Y,B,M,D,T,C,Z,H,L,F,V,R,W,S,U,N,SM,SD等")
         
-        # アドレス変換（X,Yは16進、その他は10進）
-        if device_type in ["X", "Y"]:
+        # アドレス変換
+        hex_devices = {"X", "Y", "B"}  # 16進アドレスを採用するデバイス
+        if device_type in hex_devices:
             address = int(address_str, 16)
         else:
             address = int(address_str, 10)

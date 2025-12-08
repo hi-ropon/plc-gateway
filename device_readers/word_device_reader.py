@@ -2,7 +2,7 @@
 Word Device Reader
 ==================
 
-ワードデバイス（D, W, R, ZR）読み取りクラス
+ワードデバイス（D, W, R, ZR, SD）読み取りクラス
 """
 
 import logging
@@ -18,7 +18,7 @@ class WordDeviceReader(DeviceReader):
     
     def __init__(self):
         super().__init__("word")
-        self.supported_types = {"D", "W", "R", "ZR"}
+        self.supported_types = {"D", "W", "R", "ZR", "SD"}
     
     def can_read(self, device_type: str) -> bool:
         """

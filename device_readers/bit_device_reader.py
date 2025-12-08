@@ -2,7 +2,7 @@
 Bit Device Reader (Updated)
 ===========================
 
-ビットデバイス（X, Y, M）読み取りクラス
+ビットデバイス（X, Y, B, L, T, M, SM）読み取りクラス
 """
 
 import logging
@@ -18,7 +18,7 @@ class BitDeviceReader(DeviceReader):
     
     def __init__(self):
         super().__init__("bit")
-        self.supported_types = {"X", "Y", "M"}
+        self.supported_types = {"X", "Y", "B", "L", "T", "M", "SM"}
     
     def can_read(self, device_type: str) -> bool:
         """
@@ -58,8 +58,8 @@ class BitDeviceReader(DeviceReader):
             
             # PLC からビット値を読み取り
             # デバイス指定文字列を構築（pymcprotocol要件に対応）
-            if device_type in ["X", "Y"]:
-                # X、Yデバイスは16進アドレス
+            if device_type in ["X", "Y", "B"]:
+                # X、Y、Bデバイスは16進アドレス
                 # pymcprotocolの要件：16進デバイスでは"Y0FF0"形式が必要
                 hex_addr = f"{address:X}"
                 if len(hex_addr) >= 3 and hex_addr[0].isalpha():

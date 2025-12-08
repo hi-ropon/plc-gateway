@@ -146,10 +146,19 @@ def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int) -> Lis
     plc.connect(ip, port)
     try:
         upper = device.upper()
-        if upper in ("D", "W", "R", "ZR"):
+        if upper in ("D", "W", "R", "ZR", "SD"):
             return plc.batchread_wordunits(f"{upper}{addr}", length)
-        if upper in ("X", "Y", "M"):
-            return plc.batchread_bitunits(f"{upper}{addr}", length)
+        if upper in ("X", "Y", "B", "L", "T", "M", "SM"):
+            if upper in ("X", "Y", "B"):
+                # 16進アドレスを使用するデバイス
+                hex_addr = f"{addr:X}"
+                if len(hex_addr) >= 3 and hex_addr[0].isalpha():
+                    device_addr_str = f"{upper}0{hex_addr}"
+                else:
+                    device_addr_str = f"{upper}{hex_addr}"
+            else:
+                device_addr_str = f"{upper}{addr}"
+            return plc.batchread_bitunits(device_addr_str, length)
         raise ValueError(f"Unsupported device '{device}'")
     finally:
         plc.close()
@@ -224,7 +233,7 @@ def api_read(req: ReadRequest):
          summary="単一デバイス読み取り (GET)",
          description="URLパスパラメータを使用してPLCデバイスから値を読み取ります")
 def api_read_get(
-    device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
+    device: str = Path(..., description="デバイス種別（D, W, R, ZR, SD, X, Y, B, L, T, M, SM）"),
     addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
     plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
@@ -240,7 +249,7 @@ def api_read_get(
          response_model=ReadResponse,
          operation_id="read_device_compat")
 def api_read_get_compat(
-    device: str = Path(..., description="デバイス種別（D, W, R, ZR, X, Y, M）"),
+    device: str = Path(..., description="デバイス種別（D, W, R, ZR, SD, X, Y, B, L, T, M, SM）"),
     addr: int = Path(..., description="デバイスアドレス（10進数または16進数）"),
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
     plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
@@ -307,13 +316,16 @@ def api_batch_read_status():
     """
     return {
         "batch_read_available": True,
-        "supported_devices": ["D", "W", "R", "ZR", "X", "Y", "M"],
+        "supported_devices": ["D", "W", "R", "ZR", "SD", "X", "Y", "B", "L", "T", "M", "SM"],
         "supported_formats": [
             "D100 (単一デバイス)",
             "D100:5 (連続5個)",
             "X1A (16進数アドレス)",
             "M0x10 (16進数プレフィックス)",
-            "YH20 (16進数 H記法)"
+            "YH20 (16進数 H記法)",
+            "B1A (16進数アドレス)",
+            "SM100 (特別リレー)",
+            "SD200 (特別レジスタ)"
         ],
         "max_devices_per_request": 32,  # MCプロトコル制限を考慮
         "randomread_fallback": True,
