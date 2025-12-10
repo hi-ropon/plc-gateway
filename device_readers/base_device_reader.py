@@ -99,7 +99,7 @@ class DeviceReader(ABC):
             # 2文字デバイス（特殊デバイス・特別リレー/レジスタ）
             "SM", "SD", "CN", "CC", "CS", "CX", "TN", "TC", "TS", "TX", "SB", "SW", "DX", "DY",
             # 1文字デバイス（標準的なPLCデバイス）
-            "X", "Y", "B", "M", "D", "T", "C", "Z", "H", "L", "F", "V", "R", "W", "S", "U", "N",
+            "X", "Y", "B", "M", "D", "L", "F", "V", "R", "W", "S", "U",
         ]
         
         device_type = None
@@ -120,7 +120,7 @@ class DeviceReader(ABC):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"デバイス解析失敗: '{device_spec}' - 認識されないデバイス形式")
-            raise ValueError(f"Invalid device specification: {device_spec} - 対応デバイス: X,Y,B,M,D,T,C,Z,H,L,F,V,R,W,S,U,N,SM,SD等")
+            raise ValueError(f"Invalid device specification: {device_spec} - 対応デバイス: X,Y,B,M,D,L,F,V,R,W,S,U,SM,SD,TS等")
         
         # アドレス変換
         hex_devices = {"X", "Y", "B"}  # 16進アドレスを採用するデバイス

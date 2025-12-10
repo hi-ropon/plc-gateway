@@ -2,7 +2,7 @@
 Bit Device Reader (Updated)
 ===========================
 
-ビットデバイス（X, Y, B, L, T, M, SM）読み取りクラス
+ビットデバイス（X, Y, B, L, TS, M, SM）読み取りクラス
 """
 
 import logging
@@ -18,7 +18,7 @@ class BitDeviceReader(DeviceReader):
     
     def __init__(self):
         super().__init__("bit")
-        self.supported_types = {"X", "Y", "B", "L", "T", "M", "SM"}
+        self.supported_types = {"X", "Y", "B", "L", "TS", "M", "SM"}
     
     def can_read(self, device_type: str) -> bool:
         """
