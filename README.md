@@ -68,6 +68,22 @@ python main.py --port 9000
 uvicorn gateway:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## 🧱 PyInstaller ビルド（1ファイル形式）
+
+1. 依存と PyInstaller をインストール
+   ```bash
+   pip install -r requirements.txt
+   pip install pyinstaller
+   ```
+2. ルート直下の `production_launcher.spec` を使ってビルド
+   ```bash
+   pyinstaller --clean production_launcher.spec
+   ```
+   - もしくは直接コマンド指定:  
+     `pyinstaller --clean --onefile --name plc_gateway_prod production_launcher.py`
+3. `dist/plc_gateway_prod.exe` が生成される。ユーザーへはこの exe のみを配布すればよい（ダブルクリックで本番モードが起動）。
+4. アイコンや追加データを同梱したい場合は `production_launcher.spec` 内の `datas` や `icon` を編集して再ビルドする。
+
 ## 📚 利用方法
 
 ### 1. FastAPI REST API

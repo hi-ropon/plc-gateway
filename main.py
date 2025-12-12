@@ -8,6 +8,7 @@ FastAPI REST API を起動するためのスクリプト
 
 import asyncio
 import argparse
+import importlib
 import logging
 import os
 import signal
@@ -15,7 +16,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Optional
+from typing import List, Optional
 
 import uvicorn
 
@@ -36,8 +37,10 @@ class ServiceManager:
 
     def __init__(self):
         self.rest_process: Optional[subprocess.Popen] = None
+        self.rest_server: Optional["uvicorn.Server"] = None  # type: ignore[name-defined]
         self.rest_thread: Optional[threading.Thread] = None
         self.shutdown_event = threading.Event()
+        self.frozen_executable = getattr(sys, "frozen", False)
 
     def start_rest_api(self, host: str = "127.0.0.1", port: int = 8000, reload: bool = True):
         """
@@ -51,29 +54,63 @@ class ServiceManager:
         logger.info(f"🌐 FastAPI REST API を起動中... ({host}:{port})")
 
         try:
-            # uvicornをサブプロセスで起動
-            uvicorn_cmd = [
-                sys.executable, "-m", "uvicorn", "gateway:app",
-                "--host", host,
-                "--port", str(port),
-                "--log-level", "info"
-            ]
+            if self.frozen_executable:
+                if reload:
+                    logger.warning("PyInstaller実行中はホットリロードを無効化します")
 
-            if reload:
-                uvicorn_cmd.append("--reload")
+                try:
+                    gateway_module = importlib.import_module("gateway")
+                    fastapi_app = getattr(gateway_module, "app")
+                except Exception as import_error:
+                    logger.error(f"FastAPIアプリのロードに失敗しました: {import_error}")
+                    raise
 
-            self.rest_process = subprocess.Popen(
-                uvicorn_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=0
-            )
+                config = uvicorn.Config(
+                    fastapi_app,
+                    host=host,
+                    port=port,
+                    log_level="info",
+                    reload=False,
+                )
+                self.rest_server = uvicorn.Server(config)
 
-            # 起動確認
-            time.sleep(3)
+                def run_server():
+                    asyncio.run(self.rest_server.serve())
 
-            if self.rest_process.poll() is None:
+                self.rest_thread = threading.Thread(target=run_server, daemon=True)
+                self.rest_thread.start()
+
+                # 起動確認
+                for _ in range(30):
+                    if self.rest_server.started:
+                        break
+                    time.sleep(0.2)
+                started = self.rest_server.started
+            else:
+                # uvicornをサブプロセスで起動
+                uvicorn_cmd = [
+                    sys.executable, "-m", "uvicorn", "gateway:app",
+                    "--host", host,
+                    "--port", str(port),
+                    "--log-level", "info"
+                ]
+
+                if reload:
+                    uvicorn_cmd.append("--reload")
+
+                self.rest_process = subprocess.Popen(
+                    uvicorn_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=0
+                )
+
+                # 起動確認
+                time.sleep(3)
+                started = self.rest_process.poll() is None
+
+            if started:
                 logger.info(f"✅ FastAPI REST API が起動しました")
 
                 # アクセス可能なURLを表示
@@ -87,23 +124,24 @@ class ServiceManager:
                 if hostname != "localhost":
                     logger.info(f"  - http://{hostname}:{port}/docs")
 
-                # REST APIのログ出力を監視
-                def monitor_rest_logs():
-                    while not self.shutdown_event.is_set():
-                        try:
-                            if self.rest_process and self.rest_process.poll() is None:
-                                output = self.rest_process.stderr.readline()
-                                if output:
-                                    logger.info(f"REST: {output.strip()}")
-                            else:
+                if self.rest_process:
+                    # REST APIのログ出力を監視（サブプロセス起動時のみ）
+                    def monitor_rest_logs():
+                        while not self.shutdown_event.is_set():
+                            try:
+                                if self.rest_process and self.rest_process.poll() is None:
+                                    output = self.rest_process.stderr.readline()
+                                    if output:
+                                        logger.info(f"REST: {output.strip()}")
+                                else:
+                                    break
+                            except Exception as e:
+                                logger.error(f"RESTログ監視エラー: {e}")
                                 break
-                        except Exception as e:
-                            logger.error(f"RESTログ監視エラー: {e}")
-                            break
-                        time.sleep(0.1)
+                            time.sleep(0.1)
 
-                log_thread = threading.Thread(target=monitor_rest_logs, daemon=True)
-                log_thread.start()
+                    log_thread = threading.Thread(target=monitor_rest_logs, daemon=True)
+                    log_thread.start()
             else:
                 logger.error("REST API の起動に失敗しました")
 
@@ -119,9 +157,9 @@ class ServiceManager:
 
         self.shutdown_event.set()
 
-        # REST APIプロセスを停止
+        # REST APIプロセス／スレッドを停止
         if self.rest_process:
-            logger.info("REST API サーバーを停止中...")
+            logger.info("REST API サーバー(サブプロセス)を停止中...")
             try:
                 self.rest_process.terminate()
                 self.rest_process.wait(timeout=5)
@@ -131,6 +169,12 @@ class ServiceManager:
                 self.rest_process.kill()
             except Exception as e:
                 logger.error(f"REST API サーバー停止エラー: {e}")
+        elif self.rest_server:
+            logger.info("REST API サーバー(内蔵)を停止中...")
+            self.rest_server.should_exit = True
+            if self.rest_thread:
+                self.rest_thread.join(timeout=5)
+            logger.info("✅ REST API サーバーを停止しました")
 
         logger.info("✅ 全サービスが停止しました")
 
@@ -213,10 +257,8 @@ def print_service_info(args):
     logger.info(f"  📡 PLC設定: {plc_ip}:{plc_port} (timeout: {timeout_sec}s)")
 
 
-def main():
-    """
-    メイン関数
-    """
+def build_parser() -> argparse.ArgumentParser:
+    """構成済みの引数パーサーを返す"""
     parser = argparse.ArgumentParser(
         description="PLC Gateway 統合起動システム",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -270,7 +312,13 @@ def main():
         help="本番モード: 外部からのアクセスを許可 (0.0.0.0でバインド)"
     )
 
-    args = parser.parse_args()
+    return parser
+
+
+def run(argv: Optional[List[str]] = None):
+    """引数を指定してランチャーを実行"""
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     # ログレベル設定
     logging.getLogger().setLevel(getattr(logging, args.log_level))
@@ -313,4 +361,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run()
