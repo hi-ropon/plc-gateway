@@ -254,7 +254,8 @@ def print_service_info(args):
     plc_ip = os.getenv("PLC_IP", "127.0.0.1")
     plc_port = os.getenv("PLC_PORT", "5511")
     timeout_sec = os.getenv("PLC_TIMEOUT_SEC", "3.0")
-    logger.info(f"  📡 PLC設定: {plc_ip}:{plc_port} (timeout: {timeout_sec}s)")
+    plc_transport = os.getenv("PLC_TRANSPORT", "tcp")
+    logger.info(f"  📡 PLC設定: {plc_ip}:{plc_port} (timeout: {timeout_sec}s, transport: {plc_transport})")
 
 
 def build_parser() -> argparse.ArgumentParser:

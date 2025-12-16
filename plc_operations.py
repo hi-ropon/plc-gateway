@@ -47,7 +47,8 @@ def resolve_hostname(host: str) -> str:
 class PLCConnectionConfig:
     """PLC接続設定クラス"""
 
-    def __init__(self, plc_host: str = None, ip: str = None, port: int = None, timeout_sec: float = None):
+    def __init__(self, plc_host: str = None, ip: str = None, port: int = None,
+                 timeout_sec: float = None, transport: str = None):
         """
         PLC接続設定の初期化
 
@@ -56,6 +57,7 @@ class PLCConnectionConfig:
             ip: IPアドレス（後方互換性のため）
             port: ポート番号
             timeout_sec: タイムアウト秒数
+            transport: 通信方式 ("tcp" / "udp")
         """
         # ホスト名の優先順位: plc_host > ip > 環境変数
         host = plc_host or ip or os.getenv("PLC_IP", "127.0.0.1")
@@ -71,11 +73,15 @@ class PLCConnectionConfig:
 
         self.port = port or int(os.getenv("PLC_PORT", "5511"))
         self.timeout_sec = timeout_sec or float(os.getenv("PLC_TIMEOUT_SEC", "3.0"))
+        env_transport = os.getenv("PLC_TRANSPORT", "tcp")
+        self.transport = (transport or env_transport).lower()
+        if self.transport not in ("tcp", "udp"):
+            raise ValueError(f"Unsupported transport: {self.transport}")
 
     def __str__(self):
         if self.original_host != self.ip:
-            return f"PLC({self.original_host}→{self.ip}:{self.port}, timeout={self.timeout_sec}s)"
-        return f"PLC({self.ip}:{self.port}, timeout={self.timeout_sec}s)"
+            return f"PLC({self.original_host}→{self.ip}:{self.port}, timeout={self.timeout_sec}s, transport={self.transport})"
+        return f"PLC({self.ip}:{self.port}, timeout={self.timeout_sec}s, transport={self.transport})"
 
 
 class PLCOperations:
@@ -157,7 +163,7 @@ class PLCOperations:
         plc.timer = int(config.timeout_sec * 4)
 
         try:
-            plc.connect(config.ip, config.port)
+            plc.connect(config.ip, config.port, transport=config.transport)
 
             upper = device.upper()
             if upper in ("D", "W", "R", "ZR"):
@@ -208,7 +214,7 @@ class PLCOperations:
         plc.timer = int(config.timeout_sec * 4)
 
         try:
-            plc.connect(config.ip, config.port)
+            plc.connect(config.ip, config.port, transport=config.transport)
 
             # Strategy Patternを使用したバッチ読み取り
             batch_reader = BatchDeviceReader()
@@ -283,7 +289,7 @@ class PLCOperations:
             import time
             start_time = time.time()
 
-            plc.connect(config.ip, config.port)
+            plc.connect(config.ip, config.port, transport=config.transport)
 
             # 簡単な読み取りテスト（D0を1つ読み取り）
             test_values = plc.batchread_wordunits("D0", 1)
@@ -312,15 +318,15 @@ default_plc_ops = PLCOperations()
 # ──────────────────── 互換性関数 ────────────────────
 # 既存のgateway.pyとの互換性を保つための関数
 
-def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int) -> List[int]:
+def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int, transport: str = None) -> List[int]:
     """gateway.pyとの互換性を保つための関数"""
-    config = PLCConnectionConfig(ip=ip, port=port)
+    config = PLCConnectionConfig(ip=ip, port=port, transport=transport)
     return default_plc_ops.read_single_device(device, addr, length, config)
 
 
-def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[DeviceReadResult]:
+def _batch_read_plc(device_specs: List[str], *, ip: str, port: int, transport: str = None) -> List[DeviceReadResult]:
     """gateway.pyとの互換性を保つための関数"""
-    config = PLCConnectionConfig(ip=ip, port=port)
+    config = PLCConnectionConfig(ip=ip, port=port, transport=transport)
     return default_plc_ops.batch_read_devices(device_specs, config)
 
 

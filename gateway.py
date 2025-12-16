@@ -19,6 +19,17 @@ from network_utils import print_access_info
 PLC_IP      = os.getenv("PLC_IP",         "127.0.0.1")
 PLC_PORT    = int(os.getenv("PLC_PORT",   "5511"))
 TIMEOUT_SEC = float(os.getenv("PLC_TIMEOUT_SEC", "3.0"))
+PLC_TRANSPORT = os.getenv("PLC_TRANSPORT", "tcp").lower()
+if PLC_TRANSPORT not in ("tcp", "udp"):
+    raise ValueError(f"Unsupported PLC_TRANSPORT: {PLC_TRANSPORT}")
+
+
+def _resolve_transport(requested: Optional[str]) -> str:
+    """環境変数とリクエストのtransport指定を解決"""
+    transport = (requested or PLC_TRANSPORT).lower()
+    if transport not in ("tcp", "udp"):
+        raise ValueError(f"Unsupported transport: {transport}")
+    return transport
 
 # 起動時にバージョン情報を表示
 def startup_message():
@@ -29,7 +40,7 @@ def startup_message():
     print(format_version_string())
     print("="*60)
     print(f"\nFastAPI REST API 起動")
-    print(f"  PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s)")
+    print(f"  PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s, transport: {PLC_TRANSPORT})")
 
     # アクセス情報を表示
     print_access_info(port=8000)
@@ -71,6 +82,7 @@ class ReadRequest(BaseModel):
     plc_host: Optional[str] = None  # コンピューター名またはIPアドレス
     ip:       Optional[str] = None  # 後方互換性のため残す
     port:     Optional[int] = None
+    transport: Optional[str] = None
 
 
 class BatchReadRequest(BaseModel):
@@ -78,6 +90,7 @@ class BatchReadRequest(BaseModel):
     plc_host: Optional[str] = None  # コンピューター名またはIPアドレス
     ip:       Optional[str] = None  # 後方互換性のため残す
     port:     Optional[int] = None
+    transport: Optional[str] = None
 
 
 class BatchReadResponse(BaseModel):
@@ -139,11 +152,11 @@ def _parse_device_spec(device_spec: str) -> tuple[str, int, int]:
     return device_type, address, length
 
 
-def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int) -> List[int]:
+def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int, transport: Optional[str] = None) -> List[int]:
     plc = Type3E(plctype="iQ-R")
     plc.setaccessopt(commtype="binary")
     plc.timer = int(TIMEOUT_SEC * 4)
-    plc.connect(ip, port)
+    plc.connect(ip, port, transport=_resolve_transport(transport))
     try:
         upper = device.upper()
         if upper in ("D", "W", "R", "ZR", "SD"):
@@ -164,7 +177,7 @@ def _read_plc(device: str, addr: int, length: int, *, ip: str, port: int) -> Lis
         plc.close()
 
 
-def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[DeviceReadResult]:
+def _batch_read_plc(device_specs: List[str], *, ip: str, port: int, transport: Optional[str] = None) -> List[DeviceReadResult]:
     """
     複数デバイスを効率的にバッチ読み取り（Strategy Pattern使用）
     
@@ -187,7 +200,7 @@ def _batch_read_plc(device_specs: List[str], *, ip: str, port: int) -> List[Devi
     plc.timer = int(TIMEOUT_SEC * 4)
     
     try:
-        plc.connect(ip, port)
+        plc.connect(ip, port, transport=_resolve_transport(transport))
         
         # Strategy Patternを使用したバッチ読み取り
         batch_reader = BatchDeviceReader()
@@ -219,9 +232,11 @@ def api_read(req: ReadRequest):
     try:
         # plc_hostまたはipを使用（plc_hostが優先）
         host = req.plc_host or req.ip or PLC_IP
+        transport = _resolve_transport(req.transport)
         vals = _read_plc(req.device, req.addr, req.length,
                          ip=host,
-                         port=req.port or PLC_PORT)
+                         port=req.port or PLC_PORT,
+                         transport=transport)
         return {"values": vals}
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
@@ -238,10 +253,11 @@ def api_read_get(
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
     plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
     ip: Optional[str] = Query(None, description="PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"),
-    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
+    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）"),
+    transport: Optional[str] = Query(None, description="通信方式 (tcp/udp)。未指定時は環境変数PLC_TRANSPORT")
 ):
     return api_read(ReadRequest(device=device, addr=addr, length=length,
-                                plc_host=plc_host, ip=ip, port=port))
+                                plc_host=plc_host, ip=ip, port=port, transport=transport))
 
 
 # 後方互換性のため、/api/プレフィックスなしでもアクセス可能にする
@@ -254,11 +270,12 @@ def api_read_get_compat(
     length: int = Path(..., description="読み取り長（ワード数またはビット数）"),
     plc_host: Optional[str] = Query(None, description="PLCのコンピューター名またはIPアドレス（省略時は環境変数使用）"),
     ip: Optional[str] = Query(None, description="PLCのIPアドレス（後方互換性のため残存、plc_hostを推奨）"),
-    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）")
+    port: Optional[int] = Query(None, description="PLCのポート番号（省略時は環境変数使用）"),
+    transport: Optional[str] = Query(None, description="通信方式 (tcp/udp)。未指定時は環境変数PLC_TRANSPORT")
 ):
     """後方互換性のため、/api/プレフィックスなしでもアクセス可能"""
     return api_read(ReadRequest(device=device, addr=addr, length=length,
-                                plc_host=plc_host, ip=ip, port=port))
+                                plc_host=plc_host, ip=ip, port=port, transport=transport))
 
 
 @app.post("/api/batch_read", response_model=BatchReadResponse,
@@ -282,10 +299,12 @@ def api_batch_read(req: BatchReadRequest):
         
         # バッチ読み取り実行（plc_hostまたはipを使用）
         host = req.plc_host or req.ip or PLC_IP
+        transport = _resolve_transport(req.transport)
         results = _batch_read_plc(
             req.devices,
             ip=host,
-            port=req.port or PLC_PORT
+            port=req.port or PLC_PORT,
+            transport=transport
         )
 
         # Pydanticの型検証を確実に通すため dict に変換
@@ -339,5 +358,5 @@ def api_batch_read_status():
 async def startup_event():
     """アプリケーション起動時の処理"""
     print("PLC Gateway API を起動中...")
-    print(f"PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s)")
+    print(f"PLC接続設定: {PLC_IP}:{PLC_PORT} (timeout: {TIMEOUT_SEC}s, transport: {PLC_TRANSPORT})")
     print("PLC Gateway API が正常に起動しました")

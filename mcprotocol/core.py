@@ -40,6 +40,8 @@ class MCProtocolCore:
 
     def __init__(self):
         self._sock: Optional[socket.socket] = None
+        self._transport: str = "tcp"
+        self._remote_addr: Optional[tuple[str, int]] = None
         self._is_connected = False
         self._sockbufsize = 4096
         self._debug = False
@@ -48,7 +50,7 @@ class MCProtocolCore:
         """デバッグモード設定"""
         self._debug = debug
 
-    def connect(self, ip: str, port: int, timeout: float = 2.0) -> None:
+    def connect(self, ip: str, port: int, timeout: float = 2.0, transport: str = "tcp") -> None:
         """
         PLC接続
 
@@ -56,11 +58,19 @@ class MCProtocolCore:
             ip: IPアドレス
             port: ポート番号
             timeout: タイムアウト秒数
+            transport: 輸送層 ("tcp" または "udp")
         """
+        transport = transport.lower()
+        if transport not in ("tcp", "udp"):
+            raise ValueError(f"Invalid transport '{transport}'. Use 'tcp' or 'udp'.")
+
         try:
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock_type = socket.SOCK_DGRAM if transport == "udp" else socket.SOCK_STREAM
+            self._sock = socket.socket(socket.AF_INET, sock_type)
             self._sock.settimeout(timeout)
             self._sock.connect((ip, port))
+            self._transport = transport
+            self._remote_addr = (ip, port)
             self._is_connected = True
         except Exception as e:
             from .errors import ConnectionError
@@ -81,14 +91,21 @@ class MCProtocolCore:
         if self._debug:
             print(f"Send: {data.hex()}")
 
-        self._sock.send(data)
+        if self._transport == "udp" and self._remote_addr:
+            # UDPはコネクションレスだがconnect済みで宛先を固定
+            self._sock.sendto(data, self._remote_addr)
+        else:
+            self._sock.send(data)
 
     def _recv(self, size: Optional[int] = None) -> bytes:
         """データ受信"""
         if not self._is_connected or not self._sock:
             raise Exception("Socket is not connected")
 
-        recv_data = self._sock.recv(size or self._sockbufsize)
+        if self._transport == "udp":
+            recv_data = self._sock.recvfrom(size or self._sockbufsize)[0]
+        else:
+            recv_data = self._sock.recv(size or self._sockbufsize)
 
         if self._debug:
             print(f"Recv: {recv_data.hex()}")

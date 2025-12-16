@@ -45,6 +45,7 @@ pip install -r requirements.txt
 export PLC_IP=192.168.1.100      # PLCのIPアドレス (デフォルト: 127.0.0.1)
 export PLC_PORT=5511             # PLCのポート番号 (デフォルト: 5511)
 export PLC_TIMEOUT_SEC=3.0       # タイムアウト秒数 (デフォルト: 3.0)
+export PLC_TRANSPORT=tcp         # 通信方式 tcp/udp (デフォルト: tcp)
 ```
 
 ## 🚀 起動方法
@@ -91,19 +92,19 @@ uvicorn gateway:app --reload --host 0.0.0.0 --port 8000
 #### 単一デバイス読み取り
 ```bash
 # GET方式
-curl "http://localhost:8000/api/read/D/100/1"
+curl "http://localhost:8000/api/read/D/100/1?transport=udp"  # transport省略時はtcp
 
 # POST方式
 curl -X POST "http://localhost:8000/api/read" \
   -H "Content-Type: application/json" \
-  -d '{"device": "D", "addr": 100, "length": 1}'
+  -d '{"device": "D", "addr": 100, "length": 1, "transport": "udp"}'
 ```
 
 #### バッチ読み取り
 ```bash
 curl -X POST "http://localhost:8000/api/batch_read" \
   -H "Content-Type: application/json" \
-  -d '{"devices": ["D100", "M200:3", "X1A"]}'
+  -d '{"devices": ["D100", "M200:3", "X1A"], "transport": "udp"}'
 ```
 
 #### API Documentation
@@ -140,13 +141,14 @@ print(f"成功: {result['successful_devices']}/{result['total_devices']}")
     "addr": 100,
     "length": 1,
     "ip": "192.168.1.100",     // オプション
-    "port": 5511               // オプション
+    "port": 5511,              // オプション
+    "transport": "udp"         // オプション: tcp/udp
 }
 ```
 
 #### GET `/api/read/{device}/{addr}/{length}`
 ```
-GET /api/read/D/100/1?ip=192.168.1.100&port=5511
+GET /api/read/D/100/1?ip=192.168.1.100&port=5511&transport=udp
 ```
 
 ### バッチ読み取り
@@ -156,7 +158,8 @@ GET /api/read/D/100/1?ip=192.168.1.100&port=5511
 {
     "devices": ["D100", "D200:5", "M10", "X1A", "YH20"],
     "ip": "192.168.1.100",     // オプション
-    "port": 5511               // オプション
+    "port": 5511,              // オプション
+    "transport": "udp"         // オプション: tcp/udp
 }
 ```
 
@@ -215,6 +218,7 @@ gateway/
 | `PLC_IP` | 127.0.0.1 | PLCのIPアドレス |
 | `PLC_PORT` | 5511 | PLCのポート番号 |
 | `PLC_TIMEOUT_SEC` | 3.0 | 通信タイムアウト（秒） |
+| `PLC_TRANSPORT` | tcp | 通信方式（tcp/udp） |
 
 ### 起動オプション
 
@@ -256,7 +260,7 @@ curl -X POST "http://localhost:8000/api/read" \
 ```
 2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 🚀 すべてのサービスが正常に起動しました
 2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 🌐 FastAPI REST API: http://0.0.0.0:8000
-2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 📡 PLC設定: 127.0.0.1:5511 (timeout: 3.0s)
+2024-01-01 12:00:00 - plc-gateway-launcher - INFO - 📡 PLC設定: 127.0.0.1:5511 (timeout: 3.0s, transport: tcp)
 ```
 
 ## 📄 ライセンス
