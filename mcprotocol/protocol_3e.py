@@ -255,79 +255,79 @@ class Type3E(MCProtocolCore):
 
         return bit_values
 
-    def batchwrite_wordunits(self, headdevice: str, values: List[int]) -> None:
-        """
-        ワード単位バッチ書き込み
+    # def batchwrite_wordunits(self, headdevice: str, values: List[int]) -> None:
+    #     """
+    #     ワード単位バッチ書き込み（未使用のため一時コメントアウト）
+    #
+    #     Args:
+    #         headdevice: 先頭デバイス
+    #         values: 書き込み値リスト
+    #     """
+    #     write_size = len(values)
+    #     command = 0x1401
+    #     subcommand = 0x0002 if self.plctype == iQR_SERIES else 0x0000
 
-        Args:
-            headdevice: 先頭デバイス
-            values: 書き込み値リスト
-        """
-        write_size = len(values)
-        command = 0x1401
-        subcommand = 0x0002 if self.plctype == iQR_SERIES else 0x0000
+    #     # リクエストデータ作成
+    #     request_data = bytes()
+    #     request_data += self._make_commanddata(command, subcommand)
+    #     request_data += self._make_devicedata(headdevice)
+    #     request_data += self.encode_value(write_size, "short", self.commtype)
 
-        # リクエストデータ作成
-        request_data = bytes()
-        request_data += self._make_commanddata(command, subcommand)
-        request_data += self._make_devicedata(headdevice)
-        request_data += self.encode_value(write_size, "short", self.commtype)
+    #     for value in values:
+    #         request_data += self.encode_value(value, "short", self.commtype, signed=True)
 
-        for value in values:
-            request_data += self.encode_value(value, "short", self.commtype, signed=True)
+    #     # 送信データ作成・送信
+    #     send_data = self._make_senddata(request_data)
+    #     self._send(send_data)
 
-        # 送信データ作成・送信
-        send_data = self._make_senddata(request_data)
-        self._send(send_data)
+    #     # 受信・チェック
+    #     recv_data = self._recv()
+    #     self._check_cmdanswer(recv_data)
 
-        # 受信・チェック
-        recv_data = self._recv()
-        self._check_cmdanswer(recv_data)
+    # def batchwrite_bitunits(self, headdevice: str, values: List[int]) -> None:
+    #     """
+    #     ビット単位バッチ書き込み（未使用のため一時コメントアウト）
+    #
+    #     Args:
+    #         headdevice: 先頭デバイス
+    #         values: ビット値リスト（0 or 1）
+    #     """
+    #     write_size = len(values)
 
-    def batchwrite_bitunits(self, headdevice: str, values: List[int]) -> None:
-        """
-        ビット単位バッチ書き込み
+    #     # 値チェック
+    #     for value in values:
+    #         if value not in (0, 1):
+    #             raise ValueError("Each value must be 0 or 1")
 
-        Args:
-            headdevice: 先頭デバイス
-            values: ビット値リスト（0 or 1）
-        """
-        write_size = len(values)
+    #     command = 0x1401
+    #     subcommand = 0x0003 if self.plctype == iQR_SERIES else 0x0001
 
-        # 値チェック
-        for value in values:
-            if value not in (0, 1):
-                raise ValueError("Each value must be 0 or 1")
+    #     # リクエストデータ作成
+    #     request_data = bytes()
+    #     request_data += self._make_commanddata(command, subcommand)
+    #     request_data += self._make_devicedata(headdevice)
+    #     request_data += self.encode_value(write_size, "short", self.commtype)
 
-        command = 0x1401
-        subcommand = 0x0003 if self.plctype == iQR_SERIES else 0x0001
+    #     if self.commtype == COMMTYPE_BINARY:
+    #         # ビットデータをバイト配列に変換
+    #         bit_data = [0 for _ in range((len(values) + 1) // 2)]
+    #         for index, value in enumerate(values):
+    #             value_index = index // 2
+    #             bit_index = 4 if index % 2 == 0 else 0
+    #             bit_value = value << bit_index
+    #             bit_data[value_index] |= bit_value
+    #         request_data += bytes(bit_data)
+    #     else:  # ASCII
+    #         for value in values:
+    #             request_data += str(value).encode()
 
-        # リクエストデータ作成
-        request_data = bytes()
-        request_data += self._make_commanddata(command, subcommand)
-        request_data += self._make_devicedata(headdevice)
-        request_data += self.encode_value(write_size, "short", self.commtype)
+    #     # 送信データ作成・送信
+    #     send_data = self._make_senddata(request_data)
+    #     self._send(send_data)
 
-        if self.commtype == COMMTYPE_BINARY:
-            # ビットデータをバイト配列に変換
-            bit_data = [0 for _ in range((len(values) + 1) // 2)]
-            for index, value in enumerate(values):
-                value_index = index // 2
-                bit_index = 4 if index % 2 == 0 else 0
-                bit_value = value << bit_index
-                bit_data[value_index] |= bit_value
-            request_data += bytes(bit_data)
-        else:  # ASCII
-            for value in values:
-                request_data += str(value).encode()
-
-        # 送信データ作成・送信
-        send_data = self._make_senddata(request_data)
-        self._send(send_data)
-
-        # 受信・チェック
-        recv_data = self._recv()
-        self._check_cmdanswer(recv_data)
+    #     # 受信・チェック
+    #     recv_data = self._recv()
+    #     self._check_cmdanswer(recv_data)
 
     def randomread(self, word_devices: List[str],
                   dword_devices: List[str]) -> Tuple[List[int], List[int]]:
@@ -389,46 +389,46 @@ class Type3E(MCProtocolCore):
 
         return word_values, dword_values
 
-    def randomwrite(self, word_devices: List[str], word_values: List[int],
-                   dword_devices: List[str], dword_values: List[int]) -> None:
-        """
-        ランダム書き込み
+    # def randomwrite(self, word_devices: List[str], word_values: List[int],
+    #                dword_devices: List[str], dword_values: List[int]) -> None:
+    #     """
+    #     ランダム書き込み（未使用のため一時コメントアウト）
+    #
+    #     Args:
+    #         word_devices: ワードデバイスリスト
+    #         word_values: ワード値リスト
+    #         dword_devices: ダブルワードデバイスリスト
+    #         dword_values: ダブルワード値リスト
+    #     """
+    #     if len(word_devices) != len(word_values):
+    #         raise ValueError("word_devices and word_values must be same length")
+    #     if len(dword_devices) != len(dword_values):
+    #         raise ValueError("dword_devices and dword_values must be same length")
 
-        Args:
-            word_devices: ワードデバイスリスト
-            word_values: ワード値リスト
-            dword_devices: ダブルワードデバイスリスト
-            dword_values: ダブルワード値リスト
-        """
-        if len(word_devices) != len(word_values):
-            raise ValueError("word_devices and word_values must be same length")
-        if len(dword_devices) != len(dword_values):
-            raise ValueError("dword_devices and dword_values must be same length")
+    #     word_size = len(word_devices)
+    #     dword_size = len(dword_devices)
 
-        word_size = len(word_devices)
-        dword_size = len(dword_devices)
+    #     command = 0x1402
+    #     subcommand = 0x0002 if self.plctype == iQR_SERIES else 0x0000
 
-        command = 0x1402
-        subcommand = 0x0002 if self.plctype == iQR_SERIES else 0x0000
+    #     # リクエストデータ作成
+    #     request_data = bytes()
+    #     request_data += self._make_commanddata(command, subcommand)
+    #     request_data += self.encode_value(word_size, "byte", self.commtype)
+    #     request_data += self.encode_value(dword_size, "byte", self.commtype)
 
-        # リクエストデータ作成
-        request_data = bytes()
-        request_data += self._make_commanddata(command, subcommand)
-        request_data += self.encode_value(word_size, "byte", self.commtype)
-        request_data += self.encode_value(dword_size, "byte", self.commtype)
+    #     for device, value in zip(word_devices, word_values):
+    #         request_data += self._make_devicedata(device)
+    #         request_data += self.encode_value(value, "short", self.commtype, signed=True)
 
-        for device, value in zip(word_devices, word_values):
-            request_data += self._make_devicedata(device)
-            request_data += self.encode_value(value, "short", self.commtype, signed=True)
+    #     for device, value in zip(dword_devices, dword_values):
+    #         request_data += self._make_devicedata(device)
+    #         request_data += self.encode_value(value, "long", self.commtype, signed=True)
 
-        for device, value in zip(dword_devices, dword_values):
-            request_data += self._make_devicedata(device)
-            request_data += self.encode_value(value, "long", self.commtype, signed=True)
+    #     # 送信データ作成・送信
+    #     send_data = self._make_senddata(request_data)
+    #     self._send(send_data)
 
-        # 送信データ作成・送信
-        send_data = self._make_senddata(request_data)
-        self._send(send_data)
-
-        # 受信・チェック
-        recv_data = self._recv()
-        self._check_cmdanswer(recv_data)
+    #     # 受信・チェック
+    #     recv_data = self._recv()
+    #     self._check_cmdanswer(recv_data)
